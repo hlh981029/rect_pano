@@ -6,18 +6,20 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <omp.h>
 using namespace std;
 using namespace cv;
 
 enum Direction
 {
-	Top, Bottom, Left, Right, Horizontal, Vertical
+	None, Top, Bottom, Left, Right, Horizontal, Vertical
 };
 
 struct BoundarySegment {
 	int begin;
 	int end;
 	Direction direction;
+	BoundarySegment(int _begin = 0, int _end = 0, Direction _direction = Direction::None);
 };
 
 class SeamCarving
@@ -26,9 +28,9 @@ public:
 	SeamCarving(Mat& _image, Mat& _mask);
 	BoundarySegment getLongestBoundary();
 	void localWraping();
-	void insertSeam();
-	void calcCost();
-	void showCost();
+	void insertSeam(BoundarySegment boundarySegment);
+	void calcCost(BoundarySegment boundarySegment);
+	void showCost(BoundarySegment boundarySegment);
 	int rows, cols;
 	Mat& image;
 	Mat& mask;
