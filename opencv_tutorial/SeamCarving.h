@@ -12,7 +12,7 @@ using namespace cv;
 
 enum Direction
 {
-	None, Top, Bottom, Left, Right, Horizontal, Vertical
+	None, Horizontal, Vertical, Top, Bottom, Left, Right
 };
 
 struct BoundarySegment {
@@ -36,15 +36,21 @@ public:
 	Mat& image;
 	Mat& mask;
 	Mat grayImage;
-	Mat tMask, tGrayImage;
-	Mat leftCost, upCost, rightCost, M, route;
-	Mat imageIndexUsed, displacementIndex;
+	Mat expandMaskImage, expandGrayImage;
+	float* expandGrayArray;
+	uchar* expandMaskArray;
+
+	//Mat tMask, tGrayImage, tImageIndexUsed, tDisplacementIndex;
+	Mat /*leftCost, upCost, rightCost,*/ M, route;
+	//Mat imageIndexUsed, displacementIndex;
 	uchar* maskArray;
-	float* grayImageArray;
-	float* leftCostArray;
-	float* upCostArray;
-	float* rightCostArray;
+	//float* leftCostArray;
+	//float* upCostArray;
+	//float* rightCostArray;
 	float* mArray;
+	//uchar* imageIndexUsedArray;
+	//int* displacementIndexArray;
 	int* routeArray;
+	Direction directionMask;
 };
 
