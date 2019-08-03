@@ -36,10 +36,10 @@ public:
 	Mat& image;
 	Mat& mask;
 	Mat grayImage;
-	Mat expandMaskImage, expandGrayImage;
+	Mat expandMaskImage, expandGrayImage, expandImage;
 	float* expandGrayArray;
 	uchar* expandMaskArray;
-
+	Vec3b temp;
 	//Mat tMask, tGrayImage, tImageIndexUsed, tDisplacementIndex;
 	Mat /*leftCost, upCost, rightCost,*/ M, route;
 	//Mat imageIndexUsed, displacementIndex;

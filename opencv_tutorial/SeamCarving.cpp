@@ -10,7 +10,7 @@ SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
 	maxLen = max(cols, rows);
 	cvtColor(bgrImage, grayImage, COLOR_BGR2GRAY);
 
-
+	image.copyTo(expandImage);
 	mask.copyTo(expandMaskImage);
 	grayImage.copyTo(expandGrayImage);
 	expandGrayArray = (float*)expandGrayImage.data;
@@ -169,6 +169,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 				expandGrayArray[i * cols + j] = expandGrayArray[i * cols + j - 1];
 				expandMaskArray[i * cols + j] = expandMaskArray[i * cols + j - 1];
 				image.at<Vec3b>(i, j) = image.at<Vec3b>(i, j - 1);
+				expandImage.at<Vec3b>(i, j) = expandImage.at<Vec3b>(i, j - 1);
 			}
 			if (expandMaskArray[i * cols + min] != 0) {
 				image.at<Vec3b>(i, min) = Vec3b(0,0,255);
@@ -184,6 +185,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 				expandGrayArray[i * cols + j] = expandGrayArray[i * cols + j + 1];
 				expandMaskArray[i * cols + j] = expandMaskArray[i * cols + j + 1];
 				image.at<Vec3b>(i, j) = image.at<Vec3b>(i, j + 1);
+				expandImage.at<Vec3b>(i, j) = expandImage.at<Vec3b>(i, j + 1);
 			}
 			if (expandMaskArray[i * cols + min] != 0) {
 				image.at<Vec3b>(i, min) = Vec3b(0, 0, 255);
@@ -193,6 +195,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 		}
 	}
 	if (boundarySegment.direction == Top || boundarySegment.direction == Bottom) {
+		expandImage = expandImage.t();
 		expandMaskImage = expandMaskImage.t();
 		expandGrayImage = expandGrayImage.t();
 		expandMaskArray = expandMaskImage.data;
@@ -207,6 +210,7 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 {
 	if (boundarySegment.direction == Top || boundarySegment.direction == Bottom) {
 		image = image.t();
+		expandImage = expandImage.t();
 		expandMaskImage = expandMaskImage.t();
 		expandGrayImage = expandGrayImage.t();
 		expandMaskArray = expandMaskImage.data;
@@ -264,14 +268,20 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 			}
 			if (left == -1 || expandMaskArray[i * cols + left] == 0) {
 				if (upRight == cols || expandMaskArray[(i - 1) * cols + upRight] == 0) {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					mArray[i * cols + j] = tempUpCost;
 					routeArray[i * cols + j] = up;
 				}
 				else {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
-					tempRightCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, right);
+					tempRightCost = temp.dot(temp);
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					//tempRightCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					tempRightCost += mArray[(i - 1) * cols + upRight];
 					if (tempUpCost < tempRightCost) {
@@ -286,14 +296,21 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 			}
 			else if (right == cols || expandMaskArray[i * cols + right] == 0) {
 				if (upLeft == -1 || expandMaskArray[(i - 1) * cols + upLeft] == 0) {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					mArray[i * cols + j] = tempUpCost;
 					routeArray[i * cols + j] = up;
 				}
 				else {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
-					tempLeftCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, left);
+					tempLeftCost = temp.dot(temp);
+
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					//tempLeftCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					tempLeftCost += mArray[(i - 1) * cols + upLeft];
 					if (tempLeftCost < tempUpCost) {
@@ -308,8 +325,13 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 			}
 			else {
 				if (upRight == cols || expandMaskArray[(i - 1) * cols + upRight] == 0) {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
-					tempLeftCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, left);
+					tempLeftCost = temp.dot(temp);
+
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					//tempLeftCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					tempLeftCost += mArray[(i - 1) * cols + upLeft];
 					if (tempLeftCost < tempUpCost) {
@@ -322,8 +344,12 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 					}
 				}
 				else if (upLeft == -1 || expandMaskArray[(i - 1) * cols + upLeft] == 0) {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
-					tempRightCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, right);
+					tempRightCost = temp.dot(temp);
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					//tempRightCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					tempRightCost += mArray[(i - 1) * cols + upRight];
 					if (tempUpCost < tempRightCost) {
@@ -336,9 +362,15 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 					}
 				}
 				else {
-					tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
-					tempLeftCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
-					tempRightCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
+					temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+					tempUpCost = temp.dot(temp);
+					temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, left);
+					tempLeftCost = temp.dot(temp);
+					temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, right);
+					tempRightCost = temp.dot(temp);
+					//tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+					//tempLeftCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
+					//tempRightCost = tempUpCost + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
 					tempUpCost += mArray[(i - 1) * cols + up];
 					tempLeftCost += mArray[(i - 1) * cols + upLeft];
 					tempRightCost += mArray[(i - 1) * cols + upRight];

@@ -11,8 +11,8 @@ int main(int argc, const char* argv[])
 	//	std::cout << "Please enter the file name." << endl;
 	//	return 1;
 	//}
-	string maskFilename = "pano-mask-test.png";
-	string imageFilename = "pano-test.png";
+	string maskFilename = "pano-mask-1.png";
+	string imageFilename = "pano-1.png";
 	Mat image = imread(imageFilename);
 	Mat mask = imread(maskFilename, IMREAD_GRAYSCALE);
 	SeamCarving sc(image, mask);
