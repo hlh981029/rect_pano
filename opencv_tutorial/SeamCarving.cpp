@@ -47,52 +47,6 @@ BoundarySegment SeamCarving::getLongestBoundary()
 	int start, end, length, maxLength = 0, maxStart = 0, maxEnd = 0;
 	Direction maxDirection = Direction::None;
 	uchar* boundaryMask;
-	// Top
-	start = end = length = 0;
-	boundaryMask = expandMaskArray;
-	while (end < cols) {
-		if (boundaryMask[start] != 0) {
-			end = start = start + 1;
-		}
-		else {
-			if (end + 1 < cols && boundaryMask[end + 1] == 0) {
-				end++;
-			}
-			else {
-				length = end - start + 1;
-				if (length > maxLength) {
-					maxLength = length;
-					maxStart = start;
-					maxEnd = end;
-					maxDirection = Direction::Top;
-				}
-				start = end = end + 1;
-			}
-		}
-	}
-	// Bottom
-	start = end = length = 0;
-	boundaryMask = expandMaskArray + (rows - 1) * cols;
-	while (end < cols) {
-		if (boundaryMask[start] != 0) {
-			end = start = start + 1;
-		}
-		else {
-			if (end + 1 < cols && boundaryMask[end + 1] == 0) {
-				end++;
-			}
-			else {
-				length = end - start + 1;
-				if (length > maxLength) {
-					maxLength = length;
-					maxStart = start;
-					maxEnd = end;
-					maxDirection = Direction::Bottom;
-				}
-				start = end = end + 1;
-			}
-		}
-	}
 	// Left
 	start = end = length = 0;
 	boundaryMask = expandMaskArray;
@@ -139,6 +93,53 @@ BoundarySegment SeamCarving::getLongestBoundary()
 			}
 		}
 	}
+	// Top
+	start = end = length = 0;
+	boundaryMask = expandMaskArray;
+	while (end < cols) {
+		if (boundaryMask[start] != 0) {
+			end = start = start + 1;
+		}
+		else {
+			if (end + 1 < cols && boundaryMask[end + 1] == 0) {
+				end++;
+			}
+			else {
+				length = end - start + 1;
+				if (length > maxLength) {
+					maxLength = length;
+					maxStart = start;
+					maxEnd = end;
+					maxDirection = Direction::Top;
+				}
+				start = end = end + 1;
+			}
+		}
+	}
+	// Bottom
+	start = end = length = 0;
+	boundaryMask = expandMaskArray + (rows - 1) * cols;
+	while (end < cols) {
+		if (boundaryMask[start] != 0) {
+			end = start = start + 1;
+		}
+		else {
+			if (end + 1 < cols && boundaryMask[end + 1] == 0) {
+				end++;
+			}
+			else {
+				length = end - start + 1;
+				if (length > maxLength) {
+					maxLength = length;
+					maxStart = start;
+					maxEnd = end;
+					maxDirection = Direction::Bottom;
+				}
+				start = end = end + 1;
+			}
+		}
+	}
+
 	if (maxLength == 0) {
 		return BoundarySegment(0, 0, Direction::None);
 	}
@@ -163,7 +164,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 	}
 	if (boundarySegment.direction == Bottom || boundarySegment.direction == Right) {
 		for (int i = end; i >= begin; i--) {
-			//assert(min < 0 || min >= cols);
+			assert(min >= 0 && min < cols);
 			for (int j = cols - 1; j > min; j--) {
 				expandGrayArray[i * cols + j] = expandGrayArray[i * cols + j - 1];
 				expandMaskArray[i * cols + j] = expandMaskArray[i * cols + j - 1];
@@ -171,14 +172,14 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 			}
 			if (expandMaskArray[i * cols + min] != 0) {
 				image.at<Vec3b>(i, min) = Vec3b(0,0,255);
-				expandMaskArray[i * cols + min + 1] = expandMaskArray[i * cols + min] = expandMaskArray[i * cols + min] | directionMask;
+				expandMaskArray[i * cols + min + 1] = expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | directionMask);
 			}
 			min = routeArray[i * cols + min];
 		}
 	}
 	else {
 		for (int i = end; i >= begin; i--) {
-			//assert(min < 0 || min >= cols);
+			assert(min >= 0 && min < cols);
 			for (int j = 0; j < min; j++) {
 				expandGrayArray[i * cols + j] = expandGrayArray[i * cols + j + 1];
 				expandMaskArray[i * cols + j] = expandMaskArray[i * cols + j + 1];
@@ -186,7 +187,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 			}
 			if (expandMaskArray[i * cols + min] != 0) {
 				image.at<Vec3b>(i, min) = Vec3b(0, 0, 255);
-				expandMaskArray[i * cols + min - 1] = expandMaskArray[i * cols + min] = expandMaskArray[i * cols + min] | directionMask;
+				expandMaskArray[i * cols + min - 1] = expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | directionMask);
 			}
 			min = routeArray[i * cols + min];
 		}
