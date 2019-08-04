@@ -50,7 +50,7 @@ public:
 	//float* leftCostArray;
 	//float* upCostArray;
 	//float* rightCostArray;
-	float* mArray;
+	double* mArray;
 	//uchar* imageIndexUsedArray;
 	//int* displacementIndexArray;
 	int* routeArray;

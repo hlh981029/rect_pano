@@ -19,7 +19,7 @@ SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
 
 	//displacementIndex.create(rows, cols, CV_32S);
 	//imageIndexUsed.create(rows, cols, CV_8U);
-	M.create(maxLen, maxLen, CV_32F);
+	M.create(maxLen, maxLen, CV_64F);
 	route.create(maxLen, maxLen, CV_32S);
 	M.setTo(0);
 	neighborIndexArray = new int* [maxLen];
@@ -28,7 +28,7 @@ SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
 	}
 	//imageIndexUsed.setTo(0);
 	maskArray = mask.data;
-	mArray = (float*)M.data;
+	mArray = (double*)M.data;
 	routeArray = (int*)route.data;
 	//imageIndexUsedArray = imageIndexUsed.data;
 	//displacementIndexArray = (int*)displacementIndex.data;
@@ -230,10 +230,11 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 	M.setTo(0);
 	route.setTo(-1);
 	int begin = boundarySegment.begin, end = boundarySegment.end;
-	float tempLeftCost, tempUpCost, tempRightCost;
+	double tempLeftCost, tempUpCost, tempRightCost;
 	int left, right, upLeft, upRight, up, middle, leftBorder, rightBorder, upLeftBorder, upRightBorder;
 	bool hasUp, hasLeft, hasRight;
-	int minDirection, minCost;
+	int minDirection;
+	double minCost;
 	// Dynamic program
 	for (int i = begin; i <= end; i++) {
 
@@ -357,10 +358,10 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 				hasLeft = false;
 				left = neighborIndexArray[rightBorder][0];
 				if (neighborIndexArray[j][1] == -1) {
-					continue;
 					hasUp = false;
+					up = neighborIndexArray[upRightBorder][1];
 					if (neighborIndexArray[j + 1][1] == -1) {
-						continue;
+						hasRight = false;
 					}
 					else {
 						upRight = neighborIndexArray[j + 1][1];
@@ -370,7 +371,6 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 					up = neighborIndexArray[j][1];
 					if (neighborIndexArray[j + 1][1] == -1) {
 						hasRight = false;
-						continue;
 					}
 					else {
 						upRight = neighborIndexArray[j + 1][1];
@@ -388,10 +388,10 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 				hasRight = false;
 				right = neighborIndexArray[leftBorder][0];
 				if (neighborIndexArray[j][1] == -1) {
-					continue;
 					hasUp = false;
+					up = neighborIndexArray[upLeftBorder][1];
 					if (neighborIndexArray[j - 1][1] == -1) {
-						continue;
+						hasLeft = false;
 					}
 					else {
 						upLeft = neighborIndexArray[j - 1][1];
@@ -400,7 +400,6 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 				else {
 					up = neighborIndexArray[j][1];
 					if (neighborIndexArray[j - 1][1] == -1) {
-						continue;
 						hasLeft = false;
 					}
 					else {
@@ -429,7 +428,6 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 					right = neighborIndexArray[j + 1][0];
 				}
 				if (neighborIndexArray[j][1] == -1) {
-					continue;
 					hasUp = false;
 					assert(!(neighborIndexArray[j - 1][1] != -1 && neighborIndexArray[j + 1][1] != -1));
 					if (neighborIndexArray[j - 1][1] == -1) {
@@ -447,9 +445,6 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 						assert(neighborIndexArray[j - 1][1] == -1);
 						up = neighborIndexArray[upRightBorder][1];
 						upRight = neighborIndexArray[j + 1][1];
-					}
-					if (!(hasUp || hasRight || hasLeft)) {
-						continue;
 					}
 				}
 				else {
@@ -469,20 +464,24 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 				}
 			}
 
+			if (!(hasUp || hasRight || hasLeft)) {
+				mArray[i * cols + middle] = 10e9;
+				continue;
+			}
 			minDirection = -1;
 			temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
-			tempUpCost = abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
+			tempUpCost = 0.0 + abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
 			if (hasLeft) {
 				assert(upLeft < cols && upLeft >= 0);
 				temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, left);
-				tempLeftCost = abs(temp[0]) + abs(temp[1]) + abs(temp[2]) + tempUpCost + mArray[(i - 1) * cols + upLeft];
+				tempLeftCost = tempUpCost + mArray[(i - 1) * cols + upLeft] + abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
 				minDirection = upLeft;
 				minCost = tempLeftCost;
 			}
 			if (hasRight) {
 				assert(upRight < cols && upRight >= 0);
 				temp = expandImage.at<Vec3b>(i - 1, up) - expandImage.at<Vec3b>(i, right);
-				tempRightCost = abs(temp[0]) + abs(temp[1]) + abs(temp[2]) + tempUpCost + mArray[(i - 1) * cols + upRight];
+				tempRightCost = tempUpCost + mArray[(i - 1) * cols + upRight] + abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
 				if (minDirection == -1 || tempRightCost < minCost) {
 					minDirection = upRight;
 					minCost = tempRightCost;
@@ -499,7 +498,7 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 			assert((expandMaskArray[(i - 1) * cols + minDirection] & directionMask) == 0);
 			mArray[i * cols + middle] = minCost;
 			routeArray[i * cols + middle] = minDirection;
-			assert(i == 1 || i == begin || routeArray[(i - 1) * cols + minDirection] != -1);
+			//assert(i == 1 || i == begin || routeArray[(i - 1) * cols + minDirection] != -1);
 			if (expandMaskArray[i * cols + middle] == 0) {
 				mArray[i * cols + middle] += MAX_COST;
 			}
