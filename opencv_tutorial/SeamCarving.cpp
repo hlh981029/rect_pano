@@ -1,5 +1,5 @@
 #include "SeamCarving.h"
-const int MAX_COST = 1e6;
+const int MAX_COST = 1e5;
 
 SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
 {
@@ -229,6 +229,59 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 	float tempLeftCost, tempUpCost, tempRightCost;
 	int left, right, upLeft, upRight, up;
 	for (int i = begin; i < end + 1; i++) {
+		if (i == 0) {
+			for (int j = 0; j < cols; j++) {
+				neighborIndexArray[j][0] = left;
+				if ((expandMaskArray[i * cols + j] & directionMask) == 0) {
+					left = j;
+				}
+				neighborIndexArray[cols - 1 - j][1] = right;
+				if ((expandMaskArray[i * cols + cols - 1 - j] & directionMask) == 0) {
+					right = cols - 1 - j;
+				}
+			}
+			for (int j = 0; j < cols; j++) {
+				if ((expandMaskArray[i * cols + j] & directionMask) != 0) {
+					continue;
+				}
+				left = neighborIndexArray[j][0];
+				right = neighborIndexArray[j][1];
+				if (left < 0) {
+#ifdef USE_RGB
+						temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left + 1);
+						tempUpCost = abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
+#endif // USE_RGB
+#ifdef USE_GRAY
+						tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+#endif // USE_GRAY
+						mArray[i * cols + j] = tempUpCost;
+				}
+				else if (right >= cols) {
+#ifdef USE_RGB
+						temp = expandImage.at<Vec3b>(i, right - 1) - expandImage.at<Vec3b>(i, left);
+						tempUpCost = abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
+#endif // USE_RGB
+#ifdef USE_GRAY
+						tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+#endif // USE_GRAY
+						mArray[i * cols + j] = tempUpCost;
+				}
+				else {
+#ifdef USE_RGB
+						temp = expandImage.at<Vec3b>(i, right) - expandImage.at<Vec3b>(i, left);
+						tempUpCost = abs(temp[0]) + abs(temp[1]) + abs(temp[2]);
+#endif // USE_RGB
+#ifdef USE_GRAY
+						tempUpCost = abs(expandGrayArray[i * cols + right] - expandGrayArray[i * cols + left]);
+#endif // USE_GRAY
+						mArray[i * cols + j] = tempUpCost;
+				}
+				if (expandMaskArray[i * cols + j] == 0) {
+					mArray[i * cols + j] += MAX_COST;
+				}
+			}
+			continue;
+		}
 		left = upLeft = -1;
 		right = upRight = cols;
 		for (int j = 0; j < cols; j++) {
@@ -251,11 +304,13 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 		}
 		for (int j = 0; j < cols; j++) {
 			up = j;
+			upLeft = neighborIndexArray[j][2];
+			upRight = neighborIndexArray[j][3];
 			if ((expandMaskArray[(i-1) * cols + j] & directionMask) != 0) {
 				upLeft = neighborIndexArray[j][2];
 				upRight = neighborIndexArray[j][3];
-				if ((up - upLeft) < (upRight - up)){
-					if (upLeft > 0 && neighborIndexArray[upLeft][2] >= 0) {
+				if (neighborIndexArray[up][0] == -1) {
+					if (upLeft >= 0) {
 						up = upLeft;
 						upLeft = neighborIndexArray[upLeft][2];
 					}
@@ -263,8 +318,9 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 						up = upRight;
 						upRight = neighborIndexArray[upRight][3];
 					}
-				} else if ((up - upLeft) > (upRight - up)){
-					if (upRight < cols - 1 && neighborIndexArray[upRight][3] < cols) {
+				}
+				else if (neighborIndexArray[up][1] == cols) {
+					if (upRight < cols) {
 						up = upRight;
 						upRight = neighborIndexArray[upRight][3];
 					}
@@ -273,70 +329,53 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 						upLeft = neighborIndexArray[upLeft][2];
 					}
 				}
+				else {
+					int diffLeft = up - upLeft;
+					int diffRight = upRight - up;
+					while (diffLeft == diffRight) {
+						diffLeft = neighborIndexArray[upLeft][2] - upLeft;
+						upLeft = neighborIndexArray[upLeft][2];
+						diffRight = neighborIndexArray[upRight][3] - upRight;
+						upRight = neighborIndexArray[upRight][3];
+					}
+					upLeft = neighborIndexArray[up][2];
+					upRight = neighborIndexArray[up][3];
+					if (diffLeft < diffRight) {
+						if (upLeft > 0 && neighborIndexArray[upLeft][2] >= 0) {
+							up = upLeft;
+							upLeft = neighborIndexArray[upLeft][2];
+						}
+						else {
+							up = upRight;
+							upRight = neighborIndexArray[upRight][3];
+						}
+					}
+					else {
+						if (upRight < cols - 1 && neighborIndexArray[upRight][3] < cols) {
+							up = upRight;
+							upRight = neighborIndexArray[upRight][3];
+						}
+						else {
+							up = upLeft;
+							upLeft = neighborIndexArray[upLeft][2];
+						}
+					}
+				}
 			}
+			neighborIndexArray[j][2] = upLeft;
+			neighborIndexArray[j][3] = upRight;
+			neighborIndexArray[j][4] = up;
 		}
 		for (int j = 0; j < cols; j++) {
 			if ((expandMaskArray[i * cols + j] & directionMask) != 0) {
 				continue;
 			}
-			if (i == 0) {
-				continue;
-			}
-			upLeft = upRight = up = j;
-			left = j - 1;
-			right = j + 1;
-			while (left >= 0 && (expandMaskArray[i * cols + left] & directionMask) != 0) {
-				left--;
-			}
-			while (right < cols && (expandMaskArray[i * cols + right] & directionMask) != 0) {
-				right++;
-			}
-			while (upLeft >= 0 && (expandMaskArray[(i - 1) * cols + upLeft] & directionMask) != 0) {
-				upLeft--;
-			}
-			while (upRight < cols && (expandMaskArray[(i - 1) * cols + upRight] & directionMask) != 0) {
-				upRight++;
-			}
-			if (upLeft == upRight) {
-				upLeft--;
-				upRight++;
-				while (upLeft >= 0 && (expandMaskArray[(i - 1) * cols + upLeft] & directionMask) != 0) {
-					upLeft--;
-				}
-				while (upRight < cols && (expandMaskArray[(i - 1) * cols + upRight] & directionMask) != 0) {
-					upRight++;
-				}
-			}
-			else if ((up - upLeft) < (upRight - up)) {
-				up = upLeft;
-				upLeft--;
-				while (upLeft >= 0 && (expandMaskArray[(i - 1) * cols + upLeft] & directionMask) != 0) {
-					upLeft--;
-				}
-			}
-			else {
-				up = upRight;
-				upRight++;
-				while (upRight < cols && (expandMaskArray[(i - 1) * cols + upRight] & directionMask) != 0) {
-					upRight++;
-				}
-			}
-			while (upRight >= cols) {
-				upRight = up;
-				up = upLeft;
-				upLeft--;
-				while (upLeft >= 0 && (expandMaskArray[(i - 1) * cols + upLeft] & directionMask) != 0) {
-					upLeft--;
-				}
-			}
-			while (upLeft < 0) {
-				upLeft = up;
-				up = upRight;
-				upRight++;
-				while (upRight < cols && (expandMaskArray[(i - 1) * cols + upRight] & directionMask) != 0) {
-					upRight++;
-				}
-			}
+			upLeft = neighborIndexArray[j][2];
+			upRight = neighborIndexArray[j][3];
+			up = neighborIndexArray[j][4];
+			left = neighborIndexArray[j][0];
+			right = neighborIndexArray[j][1];
+
 			assert(up >= 0 && up < cols);
 			if (left < 0) {
 				if (upRight >= cols) {
@@ -507,6 +546,7 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 			if (expandMaskArray[i * cols + j] == 0) {
 				mArray[i * cols + j] += MAX_COST;
 			}
+			assert((expandMaskArray[(i - 1) * cols + routeArray[i * cols + j]] & directionMask) == 0);
 			assert(routeArray[i * cols + j] >= 0 && routeArray[i * cols + j] < cols);
 		}
 	}
@@ -514,11 +554,12 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
 
 void SeamCarving::showCost(BoundarySegment boundarySegment)
 {
-	Mat tempImage = image.clone();
+	Mat tempImage;
+	image.copyTo(tempImage);
 	int begin = boundarySegment.begin, end = boundarySegment.end;
 	int min = 0;
-	double temp = mArray[end * cols];
-	for (int i = 1; i < cols; i++) {
+	double temp = 1e9;
+	for (int i = 0; i < cols; i++) {
 		if ((expandMaskArray[end * cols + i] & directionMask) == 0 && mArray[end * cols + i] < temp) {
 			min = i;
 			temp = mArray[end * cols + i];
@@ -526,6 +567,8 @@ void SeamCarving::showCost(BoundarySegment boundarySegment)
 	}
 	if (boundarySegment.direction == Bottom || boundarySegment.direction == Right) {
 		for (int i = end; i >= begin; i--) {
+			assert((expandMaskArray[i * cols + min] & directionMask) == 0);
+
 			assert(min >= 0 && min < cols);
 			tempImage.at<Vec3b>(i, min) = Vec3b(0, 255, 0);
 			min = routeArray[i * cols + min];
@@ -534,6 +577,8 @@ void SeamCarving::showCost(BoundarySegment boundarySegment)
 	}
 	else {
 		for (int i = end; i >= begin; i--) {
+			assert((expandMaskArray[i * cols + min] & directionMask) == 0);
+
 			assert(min >= 0 && min < cols);
 			tempImage.at<Vec3b>(i, min) = Vec3b(0, 255, 0);
 			min = routeArray[i * cols + min];
