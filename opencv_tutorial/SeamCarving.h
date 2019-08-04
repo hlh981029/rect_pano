@@ -14,7 +14,7 @@ using namespace cv;
 
 enum Direction
 {
-	None, Horizontal, Vertical, Top, Bottom, Left, Right
+	None, Horizontal = 3, Vertical = 12, Top = 1, Bottom = 2, Left = 4, Right = 8
 };
 
 struct BoundarySegment {
