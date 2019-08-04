@@ -5,14 +5,16 @@
 #include "SeamCarving.h"
 using namespace std;
 using namespace cv;
+
+void resetBorder(Mat& image);
 int main(int argc, const char* argv[])
 {
 	//if (argc == 1) {
 	//	std::cout << "Please enter the file name." << endl;
 	//	return 1;
 	//}
-	string maskFilename = "pano-mask-1.png";
-	string imageFilename = "pano-1.png";
+	string maskFilename = "pano-mask-6.png";
+	string imageFilename = "pano-6.png";
 	Mat image = imread(imageFilename);
 	Mat mask = imread(maskFilename, IMREAD_GRAYSCALE);
 	SeamCarving sc(image, mask);
@@ -50,11 +52,15 @@ int main(int argc, const char* argv[])
 	//sc.insertSeam(bs);
 	//sc.getLongestBoundary();
 
+
+	namedWindow("seam", WINDOW_AUTOSIZE | WINDOW_KEEPRATIO | WINDOW_GUI_EXPANDED);
 	while (bs.direction != None) {
 		bs.print();
 		sc.calcCost(bs);
-		//sc.showCost(bs);
+		sc.showCost(bs);
+
 		sc.insertSeam(bs);
+
 		bs = sc.getLongestBoundary();
 	}
 	imshow("result", sc.expandGrayImage);

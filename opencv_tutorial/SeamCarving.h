@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <vector>
 #include <omp.h>
+#include "Utils.h"
+
 using namespace std;
 using namespace cv;
 
@@ -39,6 +41,7 @@ public:
 	Mat expandMaskImage, expandGrayImage, expandImage;
 	float* expandGrayArray;
 	uchar* expandMaskArray;
+	int** neighborIndexArray;
 	Vec3b temp;
 	//Mat tMask, tGrayImage, tImageIndexUsed, tDisplacementIndex;
 	Mat /*leftCost, upCost, rightCost,*/ M, route;
