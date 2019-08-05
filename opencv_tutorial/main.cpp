@@ -57,7 +57,7 @@ int main(int argc, const char* argv[])
 	while (bs.direction != None) {
 		bs.print();
 		sc.calcCost(bs);
-		sc.showCost(bs);
+		//sc.showCost(bs);
 
 		sc.insertSeam(bs);
 
