@@ -19,11 +19,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="lsd.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="SeamCarving.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="lsd.h" />
     <ClInclude Include="SeamCarving.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>

@@ -11,13 +11,15 @@ SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
     cvtColor(bgrImage, grayImage, COLOR_BGR2GRAY);
 
     image.copyTo(expandImage);
+    image.copyTo(seamImage);
+    image.copyTo(meshImage);
     mask.copyTo(expandMaskImage);
     grayImage.copyTo(expandGrayImage);
     expandGrayArray = (float*)expandGrayImage.data;
     expandMaskArray = expandMaskImage.data;
 
 
-    //displacementIndex.create(rows, cols, CV_32S);
+    displacementIndex.create(rows, cols, CV_32S);
     //imageIndexUsed.create(rows, cols, CV_8U);
     M.create(maxLen, maxLen, CV_64F);
     route.create(maxLen, maxLen, CV_32S);
@@ -32,17 +34,21 @@ SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
     routeArray = (int*)route.data;
     expandImageArray = expandImage.data;
     //imageIndexUsedArray = imageIndexUsed.data;
-    //displacementIndexArray = (int*)displacementIndex.data;
+    displacementIndexArray = (int*)displacementIndex.data;
+    expandMaskRowArray = expandMaskArray;
+    displacementIndexRowArray = displacementIndexArray;
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            //displacementIndexArray[i * cols + j] = i * cols + j;
-            if (expandMaskArray[i * cols + j] != 255) {
-                expandMaskArray[i * cols + j] = 0;
+            displacementIndexRowArray[j] = i * cols + j;
+            if (expandMaskRowArray[j] != 255) {
+                expandMaskRowArray[j] = 0;
             }
             else {
-                expandMaskArray[i * cols + j] = 16;
+                expandMaskRowArray[j] = 16;
             }
         }
+        expandMaskRowArray += cols;
+        displacementIndexRowArray += cols;
     }
     directionMask = Vertical;
 }
@@ -170,50 +176,82 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
         }
     }
     if (boundarySegment.direction == Bottom || boundarySegment.direction == Right) {
+        displacementIndexRowArray = displacementIndexArray + end * cols;
         for (int i = end; i >= begin; i--) {
-            assert((expandMaskArray[i * cols + min] & directionMask) == 0);
+            assert((expandMaskRowArray[min] & directionMask) == 0);
             assert(min >= 0 && min < cols);
             for (int j = cols - 1; j > min; j--) {
+                expandMaskRowArray[j] = expandMaskRowArray[j - 1];
+                displacementIndexRowArray[j] = displacementIndexRowArray[j - 1];
+#ifdef USE_GRAY
                 expandGrayArray[i * cols + j] = expandGrayArray[i * cols + j - 1];
-                expandMaskArray[i * cols + j] = expandMaskArray[i * cols + j - 1];
+#endif // USE_GRAY
+#ifdef USE_RGB
                 expandImage.at<Vec3b>(i, j) = expandImage.at<Vec3b>(i, j - 1);
-                image.at<Vec3b>(i, j) = image.at<Vec3b>(i, j - 1);
+#endif // USE_RGB
+#ifdef SHOW_COST
+                seamImage.at<Vec3b>(i, j) = seamImage.at<Vec3b>(i, j - 1);
+#endif // SHOW_COST
             }
-            image.at<Vec3b>(i, min) = Vec3b(255, 0, 0);
-            if (expandMaskArray[i * cols + min] != 0) {
-                assert(expandMaskArray[i * cols + min + 1] == expandMaskArray[i * cols + min]);
-                expandMaskArray[i * cols + min + 1] = expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | directionMask);
+#ifdef SHOW_COST
+            seamImage.at<Vec3b>(i, min) = Vec3b(255, 0, 0);
+#endif // SHOW_COST
+            if (expandMaskRowArray[min] != 0) {
+                assert(expandMaskRowArray[min + 1] == expandMaskRowArray[min]);
+                expandMaskRowArray[min + 1] = expandMaskRowArray[min] = (expandMaskRowArray[min] | directionMask);
             }
             min = routeArray[i * cols + min];
+            displacementIndexRowArray -= cols;
+            expandMaskRowArray -= cols;
         }
     }
     else {
+        displacementIndexRowArray = displacementIndexArray + end * cols;
         for (int i = end; i >= begin; i--) {
-            assert((expandMaskArray[i * cols + min] & directionMask) == 0);
+            assert((expandMaskRowArray[min] & directionMask) == 0);
             assert(min >= 0 && min < cols);
             for (int j = 0; j < min; j++) {
+                expandMaskRowArray[j] = expandMaskRowArray[j + 1];
+                displacementIndexRowArray[j] = displacementIndexRowArray[j + 1];
+#ifdef USE_GRAY
                 expandGrayArray[i * cols + j] = expandGrayArray[i * cols + j + 1];
-                expandMaskArray[i * cols + j] = expandMaskArray[i * cols + j + 1];
+#endif // USE_GRAY
+#ifdef USE_RGB
                 expandImage.at<Vec3b>(i, j) = expandImage.at<Vec3b>(i, j + 1);
-                image.at<Vec3b>(i, j) = image.at<Vec3b>(i, j + 1);
+#endif // USE_RGB
+#ifdef SHOW_COST
+                seamImage.at<Vec3b>(i, j) = seamImage.at<Vec3b>(i, j + 1);
+#endif // SHOW_COST
             }
-            image.at<Vec3b>(i, min) = Vec3b(255, 0, 0);
-            if (expandMaskArray[i * cols + min] != 0) {
-                assert(expandMaskArray[i * cols + min - 1] == expandMaskArray[i * cols + min]);
-                expandMaskArray[i * cols + min - 1] = expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | directionMask);
+#ifdef SHOW_COST
+            seamImage.at<Vec3b>(i, min) = Vec3b(255, 0, 0);
+#endif // SHOW_COST
+            if (expandMaskRowArray[min] != 0) {
+                assert(expandMaskRowArray[min - 1] == expandMaskRowArray[min]);
+                expandMaskRowArray[min - 1] = expandMaskRowArray[min] = (expandMaskRowArray[min] | directionMask);
             }
             min = routeArray[i * cols + min];
-
+            displacementIndexRowArray -= cols;
+            expandMaskRowArray -= cols;
         }
     }
     if (boundarySegment.direction == Top || boundarySegment.direction == Bottom) {
+#ifdef USE_RGB
         expandImage = expandImage.t();
-        expandMaskImage = expandMaskImage.t();
-        expandGrayImage = expandGrayImage.t();
         expandImageArray = expandImage.data;
-        expandMaskArray = expandMaskImage.data;
+#endif // USE_RGB
+#ifdef USE_GRAY
+        expandGrayImage = expandGrayImage.t();
         expandGrayArray = (float*)expandGrayImage.data;
-        image = image.t();
+#endif // USE_GRAY
+#ifdef SHOW_COST
+        seamImage = seamImage.t();
+#endif // SHOW_COST
+        expandMaskImage = expandMaskImage.t();
+        expandMaskArray = expandMaskImage.data;
+        displacementIndex = displacementIndex.t();
+        displacementIndexArray = (int*)displacementIndex.data;
+
         swap(cols, rows);
         directionMask = Vertical;
     }
@@ -222,13 +260,21 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
 void SeamCarving::calcCost(BoundarySegment boundarySegment)
 {
     if (boundarySegment.direction == Top || boundarySegment.direction == Bottom) {
+#ifdef USE_RGB
         expandImage = expandImage.t();
-        expandMaskImage = expandMaskImage.t();
-        expandGrayImage = expandGrayImage.t();
         expandImageArray = expandImage.data;
-        expandMaskArray = expandMaskImage.data;
+#endif // USE_RGB
+#ifdef USE_GRAY
+        expandGrayImage = expandGrayImage.t();
         expandGrayArray = (float*)expandGrayImage.data;
-        image = image.t();
+#endif // USE_GRAY
+#ifdef SHOW_COST
+        seamImage = seamImage.t();
+#endif // SHOW_COST
+        expandMaskImage = expandMaskImage.t();
+        expandMaskArray = expandMaskImage.data;
+        displacementIndex = displacementIndex.t();
+        displacementIndexArray = (int*)displacementIndex.data;
         swap(cols, rows);
         directionMask = Horizontal;
     }
@@ -241,11 +287,13 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
     mRowArray = mArray + rowOffset;
     routeRowArray = routeArray + rowOffset;
     expandMaskRowArray = expandMaskArray + rowOffset;
-    expandImageRowArray = expandImageArray + rowOffset * 3;
     mUpRowArray = mRowArray - cols;
     routeUpRowArray = routeRowArray - cols;
     expandMaskUpRowArray = expandMaskRowArray - cols;
+#ifdef USE_RGB
+    expandImageRowArray = expandImageArray + rowOffset * 3;
     expandImageUpRowArray = expandImageRowArray - cols * 3;
+#endif // USE_RGB
     for (int i = begin; i <= end; i++) {
         if (i == begin) {
             if ((expandMaskRowArray[0] & directionMask) == 0) {
@@ -275,9 +323,14 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
                     left = neighborIndexArray[j][0] == -1 ? j : neighborIndexArray[j][0];
                     right = neighborIndexArray[j][1] == cols ? j : neighborIndexArray[j][1];
                     assert(left < right && left >= 0 && right < cols);
+#ifdef USE_GRAY
+                    mRowArray[j] = abs(expandGrayArray[i * cols + left] - expandGrayArray[i * cols + right]);
+#endif // USE_GRAY
+#ifdef USE_RGB
                     mRowArray[j] = abs(expandImageRowArray[left * 3] - expandImageRowArray[right * 3])
                         + abs(expandImageRowArray[left * 3 + 1] - expandImageRowArray[right * 3 + 1])
                         + abs(expandImageRowArray[left * 3 + 2] - expandImageRowArray[right * 3 + 2]);
+#endif // USE_RGB
                     routeRowArray[j] = 0;
                 }
             }
@@ -371,16 +424,28 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
                     upRight = neighborIndexArray[j][3];
                     up = neighborIndexArray[j][4];
                     assert(left < right && left >= 0 && right < cols);
+#ifdef USE_GRAY
+                    tempUpCost = abs(expandGrayArray[i * cols + left] - expandGrayArray[i * cols + right]);
+#endif // USE_GRAY
+#ifdef USE_RGB
                     tempUpCost = abs(expandImageRowArray[left * 3] - expandImageRowArray[right * 3])
                         + abs(expandImageRowArray[left * 3 + 1] - expandImageRowArray[right * 3 + 1])
                         + abs(expandImageRowArray[left * 3 + 2] - expandImageRowArray[right * 3 + 2]);
+#endif // USE_RGB
+
                     minCost = tempUpCost + mUpRowArray[up];
                     minCostIndex = up;
                     if (upLeft != -1 && up != upLeft) {
                         tempLeftCost = tempUpCost + mUpRowArray[upLeft]
+#ifdef USE_GRAY
+                            + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + left]);
+#endif // USE_GRAY
+#ifdef USE_RGB
                             + abs(expandImageUpRowArray[up * 3] - expandImageRowArray[left * 3])
                             + abs(expandImageUpRowArray[up * 3 + 1] - expandImageRowArray[left * 3 + 1])
                             + abs(expandImageUpRowArray[up * 3 + 2] - expandImageRowArray[left * 3 + 2]);
+#endif // USE_RGB
+
                         if (tempLeftCost < minCost) {
                             minCost = tempLeftCost;
                             minCostIndex = upLeft;
@@ -388,9 +453,14 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
                     }
                     if (upRight != -1 && up != upRight) {
                         tempRightCost = tempUpCost + mUpRowArray[upRight]
+#ifdef USE_GRAY
+                            + abs(expandGrayArray[(i - 1) * cols + up] - expandGrayArray[i * cols + right]);
+#endif // USE_GRAY
+#ifdef USE_RGB
                             + abs(expandImageUpRowArray[up * 3] - expandImageRowArray[right * 3])
                             + abs(expandImageUpRowArray[up * 3 + 1] - expandImageRowArray[right * 3 + 1])
                             + abs(expandImageUpRowArray[up * 3 + 2] - expandImageRowArray[right * 3 + 2]);
+#endif // USE_RGB
                         if (tempRightCost < minCost) {
                             minCost = tempRightCost;
                             minCostIndex = upRight;
@@ -411,18 +481,21 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
         mUpRowArray = mRowArray;
         routeUpRowArray = routeRowArray;
         expandMaskUpRowArray = expandMaskRowArray;
-        expandImageUpRowArray = expandImageRowArray;
         mRowArray += cols;
         routeRowArray += cols;
         expandMaskRowArray += cols;
+#ifdef USE_RGB
+        expandImageUpRowArray = expandImageRowArray;
         expandImageRowArray += cols * 3;
+#endif // USE_RGB
     }
 }
 
 void SeamCarving::showCost(BoundarySegment boundarySegment)
 {
+#ifdef SHOW_COST
     Mat tempImage;
-    image.copyTo(tempImage);
+    seamImage.copyTo(tempImage);
     int begin = boundarySegment.begin, end = boundarySegment.end;
     int min = 0;
     double temp = 1e9;
@@ -458,6 +531,46 @@ void SeamCarving::showCost(BoundarySegment boundarySegment)
     }
     imshow("seam", tempImage);
     waitKey(0);
+#endif // SHOW_COST
+}
+
+void SeamCarving::placeMesh()
+{
+    double ratio, meshRowStep, meshColStep;
+    int row, col, index;
+    ratio = cols / rows;
+    meshRows = round(sqrt(400 / ratio));
+    meshCols = round(meshRows * ratio);
+    meshRowStep = rows / meshRows;
+    meshColStep = cols / meshCols;
+    mesh = new Point * [meshRows + 1];
+    for (int i = 0; i <= meshRows; i++) {
+        mesh[i] = new Point[meshCols + 1];
+    }
+    for (int i = 0; i <= meshRows; i++) {
+        for (int j = 0; j <= meshCols; j++) {
+            if (j == meshCols) {
+                col = cols - 1;
+            }
+            else {
+                col = round(j * meshColStep);
+            }
+            if (i == meshRows) {
+                row = rows - 1;
+            }
+            else {
+                row = round(i * meshRowStep);
+            }
+            assert(col < cols && col >= 0);
+            assert(row < rows && row >= 0);
+            index = displacementIndexArray[row * cols + col];
+            assert(index > 0);
+            assert(maskArray[index] == 255);
+            mesh[i][j].y = index / cols;
+            mesh[i][j].x = index % cols;
+            meshImage.at<Vec3b>(mesh[i][j]) = Vec3b(0, 0, 255);
+        }
+    }
 }
 
 BoundarySegment::BoundarySegment(int _begin, int _end, Direction _direction) :begin(_begin), end(_end), direction(_direction) { }

@@ -13,8 +13,8 @@ int main(int argc, const char* argv[])
     //	std::cout << "Please enter the file name." << endl;
     //	return 1;
     //}
-    string maskFilename = "pano-mask-1.png";
-    string imageFilename = "pano-1.png";
+    string maskFilename = "pano-mask-test.png";
+    string imageFilename = "pano-test.png";
     Mat image = imread(imageFilename);
     Mat mask = imread(maskFilename, IMREAD_GRAYSCALE);
     SeamCarving sc(image, mask);
@@ -63,13 +63,19 @@ int main(int argc, const char* argv[])
 
         bs = sc.getLongestBoundary();
     }
+#ifdef USE_GRAY
     imshow("result", sc.expandGrayImage);
-    Mat writeExpandGrayImage, writeGrayImage;
-    sc.expandGrayImage.convertTo(writeExpandGrayImage, CV_8U, 255, 0.5);
-    sc.grayImage.convertTo(writeGrayImage, CV_8U, 255, 0.5);
-    imwrite("result.png", writeExpandGrayImage);
-    imwrite("gray.png", writeGrayImage);
-    imwrite("seam.png", image);
+    imwrite("result.png", sc.expandGrayImage);
+#endif // USE_GRAY
+#ifdef USE_RGB
+    imshow("result", sc.expandImage);
+    imwrite("result.png", sc.expandImage);
+#endif // USE_RGB
+#ifdef SHOW_COST
+    imwrite("seam.png", sc.seamImage);
+#endif // SHOW_COST
+    sc.placeMesh();
+    imshow("mesh", sc.meshImage);
     waitKey(0);
 
     return 0;
