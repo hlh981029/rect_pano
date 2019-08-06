@@ -182,8 +182,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
             image.at<Vec3b>(i, min) = Vec3b(255, 0, 0);
             if (expandMaskArray[i * cols + min] != 0) {
                 assert(expandMaskArray[i * cols + min + 1] == expandMaskArray[i * cols + min]);
-                expandMaskArray[i * cols + min + 1] = (expandMaskArray[i * cols + min + 1] | boundarySegment.direction);
-                expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | boundarySegment.direction);
+                expandMaskArray[i * cols + min + 1] = expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | directionMask);
             }
             min = routeArray[i * cols + min];
         }
@@ -201,8 +200,7 @@ void SeamCarving::insertSeam(BoundarySegment boundarySegment)
             image.at<Vec3b>(i, min) = Vec3b(255, 0, 0);
             if (expandMaskArray[i * cols + min] != 0) {
                 assert(expandMaskArray[i * cols + min - 1] == expandMaskArray[i * cols + min]);
-                expandMaskArray[i * cols + min - 1] = (expandMaskArray[i * cols + min - 1] | boundarySegment.direction);
-                expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | boundarySegment.direction);
+                expandMaskArray[i * cols + min - 1] = expandMaskArray[i * cols + min] = (expandMaskArray[i * cols + min] | directionMask);
             }
             min = routeArray[i * cols + min];
 
@@ -250,201 +248,163 @@ void SeamCarving::calcCost(BoundarySegment boundarySegment)
     expandImageUpRowArray = expandImageRowArray - cols * 3;
     for (int i = begin; i <= end; i++) {
         if (i == begin) {
-            for (int j = 0; j < cols; j++) {
-                neighborIndexArray[j][0] = j;
+            if ((expandMaskRowArray[0] & directionMask) == 0) {
+                left = 0;
+            }
+            else {
+                left = -1;
+            }
+            if ((expandMaskRowArray[cols - 1] & directionMask) == 0) {
+                right = cols - 1;
+            }
+            else {
+                right = cols;
             }
             for (int j = 0; j < cols; j++) {
-                if ((expandMaskRowArray[neighborIndexArray[j][0]] & (directionMask & (Left | Top))) != 0) {
-                    for (int k = j; k > 0; k--) {
-                        neighborIndexArray[k][0] = neighborIndexArray[k - 1][0];
-                        if (neighborIndexArray[k][0] == -1) {
-                            break;
-                        }
-                        neighborIndexArray[0][0] = -1;
-                    }
+                neighborIndexArray[j][0] = left;
+                neighborIndexArray[cols - 1 - j][1] = right;
+                if ((expandMaskRowArray[j] & directionMask) == 0) {
+                    left = j;
                 }
-            }
-            for (int j = cols - 1; j >= 0; j--) {
-                if (neighborIndexArray[j][0] == -1) {
-                    break;
-                }
-                if ((expandMaskRowArray[neighborIndexArray[j][0]] & (directionMask & (Right | Bottom))) != 0) {
-                    for (int k = j; k < cols - 1; k++) {
-                        neighborIndexArray[k][0] = neighborIndexArray[k + 1][0];
-                        if (neighborIndexArray[k][0] == -1) {
-                            break;
-                        }
-                        neighborIndexArray[cols - 1][0] = -1;
-                    }
+                if ((expandMaskRowArray[cols - 1 - j] & directionMask) == 0) {
+                    right = cols - 1 - j;
                 }
             }
             for (int j = 0; j < cols; j++) {
-                assert(neighborIndexArray[j][0] == -1 || (expandMaskRowArray[neighborIndexArray[j][0]] & directionMask) == 0);
-            }
-            for (int j = 0; j < cols; j++) {
-                middle = neighborIndexArray[j][0];
-                if (middle == -1) {
-                    continue;
+                if ((expandMaskRowArray[j] & directionMask) == 0) {
+                    left = neighborIndexArray[j][0] == -1 ? j : neighborIndexArray[j][0];
+                    right = neighborIndexArray[j][1] == cols ? j : neighborIndexArray[j][1];
+                    assert(left < right && left >= 0 && right < cols);
+                    mRowArray[j] = abs(expandImageRowArray[left * 3] - expandImageRowArray[right * 3])
+                        + abs(expandImageRowArray[left * 3 + 1] - expandImageRowArray[right * 3 + 1])
+                        + abs(expandImageRowArray[left * 3 + 2] - expandImageRowArray[right * 3 + 2]);
+                    routeRowArray[j] = 0;
                 }
-                if (j == 0 || neighborIndexArray[j - 1][0] == -1) {
-                    left = middle;
-                    right = neighborIndexArray[j + 1][0];
-                }
-                else if (j == cols - 1 || neighborIndexArray[j + 1][0] == -1) {
-                    left = neighborIndexArray[j - 1][0];
-                    right = middle;
-                }
-                else {
-                    left = neighborIndexArray[j - 1][0];
-                    right = neighborIndexArray[j + 1][0];
-                }
-                assert((expandMaskRowArray[left] & directionMask) == 0 && (expandMaskRowArray[right] & directionMask) == 0);
-                tempUpCost = abs(expandImageRowArray[left * 3] - expandImageRowArray[right * 3])
-                    + abs(expandImageRowArray[left * 3 + 1] - expandImageRowArray[right * 3 + 1])
-                    + abs(expandImageRowArray[left * 3 + 2] - expandImageRowArray[right * 3 + 2]);
-                mRowArray[middle] = tempUpCost;
-                routeRowArray[middle] = 0;
             }
         }
         else {
-            for (int j = 0; j < cols; j++) {
-                neighborIndexArray[j][0] = neighborIndexArray[j][1] = j;
+            if ((expandMaskRowArray[0] & directionMask) == 0) {
+                left = 0;
+            }
+            else {
+                left = -1;
+            }
+            if ((expandMaskRowArray[cols - 1] & directionMask) == 0) {
+                right = cols - 1;
+            }
+            else {
+                right = cols;
+            }
+            if ((expandMaskUpRowArray[0] & directionMask) == 0) {
+                upLeft = 0;
+            }
+            else {
+                upLeft = -1;
+            }
+            if ((expandMaskUpRowArray[cols - 1] & directionMask) == 0) {
+                upRight = cols - 1;
+            }
+            else {
+                upRight = cols;
             }
             for (int j = 0; j < cols; j++) {
-                if ((expandMaskRowArray[neighborIndexArray[j][0]] & (directionMask & (Left | Top))) != 0) {
-                    for (int k = j; k > 0; k--) {
-                        neighborIndexArray[k][0] = neighborIndexArray[k - 1][0];
-                        if (neighborIndexArray[k][0] == -1) {
-                            break;
-                        }
-                        neighborIndexArray[0][0] = -1;
-                    }
+                neighborIndexArray[j][0] = left;
+                neighborIndexArray[cols - 1 - j][1] = right;
+                neighborIndexArray[j][2] = upLeft;
+                neighborIndexArray[cols - 1 - j][3] = upRight;
+                if ((expandMaskRowArray[j] & directionMask) == 0) {
+                    left = j;
                 }
-                if ((expandMaskUpRowArray[neighborIndexArray[j][1]] & (directionMask & (Left | Top))) != 0) {
-                    for (int k = j; k > 0; k--) {
-                        neighborIndexArray[k][1] = neighborIndexArray[k - 1][1];
-                        if (neighborIndexArray[k][1] == -1) {
-                            break;
-                        }
-                        neighborIndexArray[0][1] = -1;
-                    }
+                if ((expandMaskRowArray[cols - 1 - j] & directionMask) == 0) {
+                    right = cols - 1 - j;
                 }
-            }
-            for (int j = cols - 1; j >= 0; j--) {
-                if (neighborIndexArray[j][0] == -1 && neighborIndexArray[j][1] == -1) {
-                    break;
+                if ((expandMaskUpRowArray[j] & directionMask) == 0) {
+                    upLeft = j;
                 }
-                if (neighborIndexArray[j][0] != -1 && (expandMaskRowArray[neighborIndexArray[j][0]] & (directionMask & (Right | Bottom))) != 0) {
-                    for (int k = j; k < cols - 1; k++) {
-                        neighborIndexArray[k][0] = neighborIndexArray[k + 1][0];
-                        if (neighborIndexArray[k][0] == -1) {
-                            break;
-                        }
-                        neighborIndexArray[cols - 1][0] = -1;
-                    }
-                }
-                if (neighborIndexArray[j][1] != -1 && (expandMaskUpRowArray[neighborIndexArray[j][1]] & (directionMask & (Right | Bottom))) != 0) {
-                    for (int k = j; k < cols - 1; k++) {
-                        neighborIndexArray[k][1] = neighborIndexArray[k + 1][1];
-                        if (neighborIndexArray[k][1] == -1) {
-                            break;
-                        }
-                        neighborIndexArray[cols - 1][1] = -1;
-                    }
+                if ((expandMaskUpRowArray[cols - 1 - j] & directionMask) == 0) {
+                    upRight = cols - 1 - j;
                 }
             }
             for (int j = 0; j < cols; j++) {
-                assert(neighborIndexArray[j][0] == -1 || (expandMaskRowArray[neighborIndexArray[j][0]] & directionMask) == 0);
-                assert(neighborIndexArray[j][1] == -1 || (expandMaskUpRowArray[neighborIndexArray[j][1]] & directionMask) == 0);
-            }
-            for (int j = 0; j < cols; j++) {
-                hasLeft = hasRight = hasUp = true;
-                left = right = middle = upLeft = upRight = up = -1;
-                if (neighborIndexArray[j][0] != -1) {
-                    middle = neighborIndexArray[j][0];
-                    if (neighborIndexArray[j][1] != -1) {
-                        up = neighborIndexArray[j][1];
-                        if (j == 0 || neighborIndexArray[j - 1][0] == -1) {
-                            hasLeft = false;
-                            left = neighborIndexArray[j][0];
-                            right = neighborIndexArray[j + 1][0];
-                            upRight = neighborIndexArray[j + 1][1];
-                            assert(upRight != -1);
-                            if (j != 0 && neighborIndexArray[j - 1][1] != -1) {
-                                hasLeft = true;
-                                upLeft = neighborIndexArray[j - 1][1];
-                            }
-                        }
-                        else if (j == cols - 1 || neighborIndexArray[j + 1][0] == -1) {
-                            hasRight = false;
-                            left = neighborIndexArray[j - 1][0];
-                            right = neighborIndexArray[j][0];
-                            upLeft = neighborIndexArray[j - 1][1];
-                            assert(upLeft != -1);
-                            if (j != cols - 1 && neighborIndexArray[j + 1][1] != -1) {
-                                hasRight = true;
-                                upRight = neighborIndexArray[j + 1][1];
-                            }
-                        }
-                        else {
-                            left = neighborIndexArray[j - 1][0];
-                            right = neighborIndexArray[j + 1][0];
-                            if (neighborIndexArray[j - 1][1] == -1) {
-                                hasLeft = false;
-                            }
-                            else {
-                                upLeft = neighborIndexArray[j - 1][1];
-                            }
-                            if (neighborIndexArray[j + 1][1] == -1) {
-                                hasRight = false;
-                            }
-                            else {
-                                upRight = neighborIndexArray[j + 1][1];
-                            }
-                        }
-                        tempUpCost = abs(expandImageRowArray[left * 3] - expandImageRowArray[right * 3])
-                                   + abs(expandImageRowArray[left * 3 + 1] - expandImageRowArray[right * 3 + 1])
-                                   + abs(expandImageRowArray[left * 3 + 2] - expandImageRowArray[right * 3 + 2]);
-                        minCost = tempUpCost + mUpRowArray[up];
-                        minCostIndex = up;
-                        if (hasLeft) {
-                            tempLeftCost = tempUpCost + mUpRowArray[upLeft]
-                                         + abs(expandImageUpRowArray[up * 3] - expandImageRowArray[right * 3])
-                                         + abs(expandImageUpRowArray[up * 3 + 1] - expandImageRowArray[right * 3 + 1])
-                                         + abs(expandImageUpRowArray[up * 3 + 2] - expandImageRowArray[right * 3 + 2]);
-                            if (tempLeftCost < minCost) {
-                                minCost = tempLeftCost;
-                                minCostIndex = upLeft;
-                            }
-                        }
-                        if (hasRight) {
-                            tempRightCost = tempUpCost + mUpRowArray[upRight]
-                                          + abs(expandImageUpRowArray[up * 3] - expandImageRowArray[left * 3])
-                                          + abs(expandImageUpRowArray[up * 3 + 1] - expandImageRowArray[left * 3 + 1])
-                                          + abs(expandImageUpRowArray[up * 3 + 2] - expandImageRowArray[left * 3 + 2]);
-                            if (tempRightCost < minCost) {
-                                minCost = tempRightCost;
-                                minCostIndex = upRight;
-                            }
-                        }
-                        if (minCost > 10e9 - 1) {
-                            mRowArray[middle] = 10e9;
-                        }
-                        else {
-                            assert(minCost >= 0);
-                            assert(minCostIndex != -1);
-                            assert(routeUpRowArray[minCostIndex] != -1);
-                            assert((expandMaskUpRowArray[minCostIndex] & directionMask) == 0);
-                            if (expandMaskRowArray[middle] == 0) {
-                                minCost += MAX_COST;
-                            }
-                            routeRowArray[middle] = minCostIndex;
-                            mRowArray[middle] = minCost;
-                        }
+                if ((expandMaskUpRowArray[j] & directionMask) == 0) {
+                    neighborIndexArray[j][4] = j;
+                }
+                else {
+                    upLeft = neighborIndexArray[j][2];
+                    upRight = neighborIndexArray[j][3];
+                    if (upLeft == -1) {
+                        assert(upRight != -1);
+                        neighborIndexArray[j][4] = upRight;
+                        neighborIndexArray[j][3] = neighborIndexArray[upRight][3];
+                    }
+                    else if (upRight == -1) {
+                        assert(upLeft != -1);
+                        neighborIndexArray[j][4] = upLeft;
+                        neighborIndexArray[j][2] = neighborIndexArray[upLeft][2];
                     }
                     else {
-                        mRowArray[middle] = 10e9;
+                        left = upLeft;
+                        right = upRight;
+                        while (j - left == right - j) {
+                            left = neighborIndexArray[left][2];
+                            right = neighborIndexArray[right][3];
+                        }
+                        if (left < right) {
+                            neighborIndexArray[j][4] = upLeft;
+                            neighborIndexArray[j][2] = neighborIndexArray[upLeft][2];
+                        }
+                        else {
+                            assert(left > right);
+                            neighborIndexArray[j][4] = upRight;
+                            neighborIndexArray[j][3] = neighborIndexArray[upRight][3];
+
+                        }
                     }
+                }
+                assert(neighborIndexArray[j][4] >= 0 && neighborIndexArray[j][4] < cols);
+            }
+            for (int j = 0; j < cols; j++) {
+                if ((expandMaskRowArray[j] & directionMask) == 0) {
+                    left = neighborIndexArray[j][0] == -1 ? j : neighborIndexArray[j][0];
+                    right = neighborIndexArray[j][1] == cols ? j : neighborIndexArray[j][1];
+                    upLeft = neighborIndexArray[j][2];
+                    upRight = neighborIndexArray[j][3];
+                    up = neighborIndexArray[j][4];
+                    assert(left < right && left >= 0 && right < cols);
+                    tempUpCost = abs(expandImageRowArray[left * 3] - expandImageRowArray[right * 3])
+                        + abs(expandImageRowArray[left * 3 + 1] - expandImageRowArray[right * 3 + 1])
+                        + abs(expandImageRowArray[left * 3 + 2] - expandImageRowArray[right * 3 + 2]);
+                    minCost = tempUpCost + mUpRowArray[up];
+                    minCostIndex = up;
+                    if (upLeft != -1 && up != upLeft) {
+                        tempLeftCost = tempUpCost + mUpRowArray[upLeft]
+                            + abs(expandImageUpRowArray[up * 3] - expandImageRowArray[left * 3])
+                            + abs(expandImageUpRowArray[up * 3 + 1] - expandImageRowArray[left * 3 + 1])
+                            + abs(expandImageUpRowArray[up * 3 + 2] - expandImageRowArray[left * 3 + 2]);
+                        if (tempLeftCost < minCost) {
+                            minCost = tempLeftCost;
+                            minCostIndex = upLeft;
+                        }
+                    }
+                    if (upRight != -1 && up != upRight) {
+                        tempRightCost = tempUpCost + mUpRowArray[upRight]
+                            + abs(expandImageUpRowArray[up * 3] - expandImageRowArray[right * 3])
+                            + abs(expandImageUpRowArray[up * 3 + 1] - expandImageRowArray[right * 3 + 1])
+                            + abs(expandImageUpRowArray[up * 3 + 2] - expandImageRowArray[right * 3 + 2]);
+                        if (tempRightCost < minCost) {
+                            minCost = tempRightCost;
+                            minCostIndex = upRight;
+                        }
+                    }
+                    assert(minCost >= 0);
+                    assert(minCostIndex != -1);
+                    assert(routeUpRowArray[minCostIndex] != -1);
+                    assert((expandMaskUpRowArray[minCostIndex] & directionMask) == 0);
+                    if (expandMaskRowArray[j] == 0) {
+                        minCost += MAX_COST;
+                    }
+                    routeRowArray[j] = minCostIndex;
+                    mRowArray[j] = minCost;
                 }
             }
         }
