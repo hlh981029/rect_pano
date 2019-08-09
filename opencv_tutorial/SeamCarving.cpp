@@ -12,7 +12,6 @@ SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
 
     image.copyTo(expandImage);
     image.copyTo(seamImage);
-    image.copyTo(meshImage);
     mask.copyTo(expandMaskImage);
     grayImage.copyTo(expandGrayImage);
     expandGrayArray = (float*)expandGrayImage.data;
@@ -538,7 +537,7 @@ void SeamCarving::placeMesh()
 {
     double ratio, meshRowStep, meshColStep;
     int row, col, index;
-    ratio = cols / rows;
+    ratio = 1.0 * cols / rows;
     meshRows = round(sqrt(400 / ratio));
     meshCols = round(meshRows * ratio);
     meshRowStep = rows / meshRows;
@@ -568,7 +567,6 @@ void SeamCarving::placeMesh()
             assert(maskArray[index] == 255);
             mesh[i][j].y = index / cols;
             mesh[i][j].x = index % cols;
-            meshImage.at<Vec3b>(mesh[i][j]) = Vec3b(0, 0, 255);
         }
     }
 }

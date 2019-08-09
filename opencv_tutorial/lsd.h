@@ -1,3 +1,4 @@
+#pragma once
 /*----------------------------------------------------------------------------
 
   LSD - Line Segment Detector on digital images

@@ -37,7 +37,7 @@ public:
     void placeMesh();
     Mat& image;
     Mat& mask;
-    Mat grayImage, expandMaskImage, expandGrayImage, expandImage, seamImage, meshImage;
+    Mat grayImage, expandMaskImage, expandGrayImage, expandImage, seamImage;
     Mat M, route;
     Direction directionMask, direction;
     int rows, cols, maxLen;

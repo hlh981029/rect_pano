@@ -2,11 +2,13 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
+#include <fstream>
 #include "SeamCarving.h"
+#include "GlobalWraping.h"
 using namespace std;
 using namespace cv;
 
-void resetBorder(Mat& image);
+
 int main(int argc, const char* argv[])
 {
     //if (argc == 1) {
@@ -17,6 +19,10 @@ int main(int argc, const char* argv[])
     string imageFilename = "pano-test.png";
     Mat image = imread(imageFilename);
     Mat mask = imread(maskFilename, IMREAD_GRAYSCALE);
+#ifndef SKIP_LOCAL
+
+
+
     SeamCarving sc(image, mask);
     BoundarySegment bs = sc.getLongestBoundary();
     //if (image.empty()) {
@@ -63,6 +69,9 @@ int main(int argc, const char* argv[])
 
         bs = sc.getLongestBoundary();
     }
+
+
+
 #ifdef USE_GRAY
     imshow("result", sc.expandGrayImage);
     imwrite("result.png", sc.expandGrayImage);
@@ -75,7 +84,44 @@ int main(int argc, const char* argv[])
     imwrite("seam.png", sc.seamImage);
 #endif // SHOW_COST
     sc.placeMesh();
-    imshow("mesh", sc.meshImage);
+
+#ifdef SAVE_MESH
+    ofstream out("mesh.txt");
+    out << sc.meshCols << ' ' << sc.meshRows << endl;
+    for (int i = 0; i <= sc.meshRows; i++) {
+        for (int j = 0; j <= sc.meshCols; j++) {
+            out << sc.mesh[i][j].x << ' ' << sc.mesh[i][j].y << ' ';
+        }
+    }
+    return 0;
+#endif // SAVE_MESH
+
+    
+    
+    
+    GlobalWraping gw(image, mask, sc.mesh, sc.meshRows, sc.meshCols);
+#else
+    ifstream in("mesh.txt");
+    int meshRows, meshCols;
+    in >> meshCols >> meshRows;
+    Point** mesh = new Point * [meshRows + 1];
+    for (int i = 0; i <= meshRows; i++) {
+        mesh[i] = new Point[meshCols + 1];
+        for (int j = 0; j <= meshCols; j++) {
+            in >> mesh[i][j].x >> mesh[i][j].y;
+        }
+    }
+    GlobalWraping gw(image, mask, mesh, meshRows, meshCols);
+
+#endif // !SKIP_LOCAL
+
+
+    gw.drawMesh();
+    gw.calcMeshToVertex();
+    gw.calcBoundaryEnergy();
+    gw.calcMeshShapeEnergy();
+    gw.detectLineSegment();
+    gw.drawMesh(true);
     waitKey(0);
 
     return 0;
