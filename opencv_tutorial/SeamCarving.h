@@ -10,7 +10,6 @@
 #include "Utils.h"
 
 using namespace std;
-using namespace cv;
 
 enum Direction
 {
@@ -28,21 +27,21 @@ struct BoundarySegment {
 class SeamCarving
 {
 public:
-    SeamCarving(Mat& _image, Mat& _mask);
+    SeamCarving(cv::Mat& _image, cv::Mat& _mask);
     BoundarySegment getLongestBoundary();
     void localWraping();
     void insertSeam(BoundarySegment boundarySegment);
     void calcCost(BoundarySegment boundarySegment);
     void showCost(BoundarySegment boundarySegment);
     void placeMesh();
-    Mat& image;
-    Mat& mask;
-    Mat grayImage, expandMaskImage, expandGrayImage, expandImage, seamImage;
-    Mat M, route;
+    cv::Mat& image;
+    cv::Mat& mask;
+    cv::Mat grayImage, expandMaskImage, expandGrayImage, expandImage, seamImage;
+    cv::Mat M, route;
     Direction directionMask, direction;
     int rows, cols, maxLen;
     int meshRows, meshCols;
-    Point** mesh;
+    cv::Point** mesh;
     int begin, end, left, right, middle, upLeft, up, upRight, rowOffset, minCostIndex;
     double tempUpCost, tempLeftCost, tempRightCost, minCost;
     bool hasLeft, hasRight, hasUp;
@@ -54,7 +53,7 @@ public:
     uchar* expandMaskArray, * expandMaskRowArray, * expandMaskUpRowArray;
     uchar* maskArray;
 
-    Mat displacementIndex;
+    cv::Mat displacementIndex;
     int* displacementIndexArray, * displacementIndexRowArray;
 
     //Mat leftCost, upCost, rightCost;

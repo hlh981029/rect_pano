@@ -86,7 +86,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glew-2.2.0\include;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glfw-3.3.bin.WIN64\include;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\freeglut\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glew-2.2.0\build\lib\Debug\x64;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glfw-3.3.bin.WIN64\lib-vc2019;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\freeglut\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -109,6 +110,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <AdditionalDependencies>opengl32.lib;glew32d.lib;glfw3.lib;freeglut.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

@@ -1,14 +1,14 @@
 #include "SeamCarving.h"
 const int MAX_COST = 1e5;
 
-SeamCarving::SeamCarving(Mat& _image, Mat& _mask) :image(_image), mask(_mask)
+SeamCarving::SeamCarving(cv::Mat& _image, cv::Mat& _mask) :image(_image), mask(_mask)
 {
-    Mat bgrImage;
+    cv::Mat bgrImage;
     image.convertTo(bgrImage, CV_32FC3, 1.0 / 255);
     rows = image.rows;
     cols = image.cols;
     maxLen = max(cols, rows);
-    cvtColor(bgrImage, grayImage, COLOR_BGR2GRAY);
+    cvtColor(bgrImage, grayImage, cv::COLOR_BGR2GRAY);
 
     image.copyTo(expandImage);
     image.copyTo(seamImage);
@@ -542,9 +542,9 @@ void SeamCarving::placeMesh()
     meshCols = round(meshRows * ratio);
     meshRowStep = rows / meshRows;
     meshColStep = cols / meshCols;
-    mesh = new Point * [meshRows + 1];
+    mesh = new cv::Point * [meshRows + 1];
     for (int i = 0; i <= meshRows; i++) {
-        mesh[i] = new Point[meshCols + 1];
+        mesh[i] = new cv::Point[meshCols + 1];
     }
     for (int i = 0; i <= meshRows; i++) {
         for (int j = 0; j <= meshCols; j++) {

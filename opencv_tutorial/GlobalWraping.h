@@ -10,6 +10,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+
 #include "Utils.h"
 
 extern "C"
@@ -18,7 +19,6 @@ extern "C"
 }
 
 using namespace std;
-using namespace cv;
 using namespace Eigen;
 
 struct BilinearWeight {
@@ -33,14 +33,18 @@ struct Coordinate {
     Coordinate(double _col, double _row) :row(_row), col(_col) {}
     Coordinate(const Coordinate& p) :row(p.row), col(p.col) {}
     Coordinate() :row(0), col(0) {}
-    const Point toPoint() {
-        return Point(col, row);
+    const cv::Point toPoint() {
+        return cv::Point(col, row);
     }
     friend const Coordinate operator-(const Coordinate& p1, const Coordinate& p2) {
         return Coordinate(p1.col - p2.col, p1.row - p2.row);
     }
     friend const Coordinate operator+(const Coordinate& p1, const Coordinate& p2) {
         return Coordinate(p1.col + p2.col, p1.row + p2.row);
+    }
+    friend ostream& operator<<(ostream& stream, const Coordinate& p) {
+        stream << "(" << p.col << "," << p.row << ")";
+        return stream;
     }
 };
 
@@ -54,11 +58,11 @@ struct LineSegment {
         :row1(ls.row1), col1(ls.col1), row2(ls.row2), col2(ls.col2) {}
     LineSegment()
         :row1(0), col1(0), row2(0), col2(0) {}
-    const Point toPoint1() {
-        return Point(col1, row1);
+    const cv::Point toPoint1() {
+        return cv::Point(col1, row1);
     }
-    const Point toPoint2() {
-        return Point(col2, row2);
+    const cv::Point toPoint2() {
+        return cv::Point(col2, row2);
     }
     const Coordinate toCord1() {
         return Coordinate(col1, row1);
@@ -77,7 +81,7 @@ struct LineSegment {
 class GlobalWraping
 {
 public:
-    GlobalWraping(Mat& _image, Mat& _mask, Point** mesh, int _meshRows, int _meshCols);
+    GlobalWraping(cv::Mat& _image, cv::Mat& _mask, cv::Point** mesh, int _meshRows, int _meshCols);
     void calcMeshToVertex();
     void calcMeshShapeEnergy();
     void calcBoundaryEnergy();
@@ -96,8 +100,9 @@ public:
     void calcLineCost(Coordinate** mesh);
     void updateTheta();
     void test(Coordinate** mesh, string str);
-    Mat& image;
-    Mat& mask;
+
+    cv::Mat& image;
+    cv::Mat& mask;
     int cols, rows, meshRows, meshCols;
     int meshLineNumber;
     Coordinate** meshVertex;
@@ -113,16 +118,16 @@ public:
     SparseMatrix<double, RowMajor> meshShapeEnergy;
     SparseMatrix<double, RowMajor> meshLineEnergy;
     SparseMatrix<double, RowMajor> boundaryEnergy;
+    double lastCost;
+    double lastLineCost;
     const double INF = 10e8;
     const double PI = 3.1415926535;
     const double EPSILON = 1e-4;
-    const Scalar RED = Scalar(0, 0, 255);
-    const Scalar BLUE = Scalar(255, 0, 0);
-    const Scalar GREEN = Scalar(0, 255, 0);
+    const cv::Scalar RED = cv::Scalar(0, 0, 255);
+    const cv::Scalar BLUE = cv::Scalar(255, 0, 0);
+    const cv::Scalar GREEN = cv::Scalar(0, 255, 0);
     const double lambdaB = 10e8;
     const double lambdaL = 100;
-    double lastCost;
-    double lastLineCost;
 
 };
 

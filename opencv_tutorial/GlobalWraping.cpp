@@ -1,7 +1,8 @@
 #include "GlobalWraping.h"
 
-GlobalWraping::GlobalWraping(Mat& _image, Mat& _mask, Point** mesh, int _meshRows, int _meshCols)
-    : image(_image), mask(_mask), meshRows(_meshRows), meshCols(_meshCols)
+
+GlobalWraping::GlobalWraping(cv::Mat& _image, cv::Mat& _mask, cv::Point** mesh, int _meshRows, int _meshCols)
+    :image(_image), mask(_mask), meshRows(_meshRows), meshCols(_meshCols)
 {
     cols = image.cols;
     rows = image.rows;
@@ -148,20 +149,20 @@ void GlobalWraping::calcMeshLineEnergy()
 
 void GlobalWraping::detectLineSegment()
 {
-    Mat grayImage;
+    cv::Mat grayImage;
     int lineNumber;
     double* line;
-    cvtColor(image, grayImage, COLOR_BGR2GRAY);
+    cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
     grayImage.convertTo(grayImage, CV_64F);
     line = lsd(&lineNumber, (double*)grayImage.data, cols, rows);
     vector<LineSegment> lineSegments;
 
-    Mat tempMask;
+    cv::Mat tempMask;
     mask.copyTo(tempMask);
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             if (mask.at<uchar>(i, j) == 0) {
-                circle(tempMask, Point(j, i), 2, 0);
+                circle(tempMask, cv::Point(j, i), 2, 0);
             }
         }
     }
@@ -628,7 +629,7 @@ void GlobalWraping::updateV()
 
 void GlobalWraping::drawMesh(Coordinate** mesh)
 {
-    Mat tempImage;
+    cv::Mat tempImage;
     image.copyTo(tempImage);
     for (int i = 0; i < meshRows; i++) {
         for (int j = 0; j < meshCols; j++) {
@@ -656,13 +657,13 @@ void GlobalWraping::drawMesh(Coordinate** mesh)
             for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
                 point1 = meshLinePointBilinearWeight[i][j][k].first * quadVector;
                 point2 = meshLinePointBilinearWeight[i][j][k].second * quadVector;
-                line(tempImage, Point(point1(0), point1(1)), Point(point2(0), point2(1)), BLUE);
+                line(tempImage, cv::Point(point1(0), point1(1)), cv::Point(point2(0), point2(1)), BLUE);
             }
         }
     }
 #endif // DRAW_LINE
     imshow("mesh", tempImage);
-    waitKey(0);
+    cv::waitKey(0);
 }
 
 void GlobalWraping::calcCost(Coordinate** mesh)
@@ -756,7 +757,7 @@ void GlobalWraping::updateTheta()
 void GlobalWraping::test(Coordinate** mesh, string str)
 {
 
-    Mat tempImage;
+    cv::Mat tempImage;
     image.copyTo(tempImage);
     for (int i = 0; i < meshRows; i++) {
         for (int j = 0; j < meshCols; j++) {
@@ -784,14 +785,14 @@ void GlobalWraping::test(Coordinate** mesh, string str)
             for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
                 point1 = meshLinePointBilinearWeight[i][j][k].first * quadVector;
                 point2 = meshLinePointBilinearWeight[i][j][k].second * quadVector;
-                line(tempImage, Point(point1(0), point1(1)), Point(point2(0), point2(1)), BLUE);
+                line(tempImage, cv::Point(point1(0), point1(1)), cv::Point(point2(0), point2(1)), BLUE);
 
             }
         }
     }
 #endif // DRAW_LINE
     imshow(str, tempImage);
-    waitKey(0);
+    cv::waitKey(0);
 //    for (int count = 0; count < 50; count++) {
 //        Mat tempImage;
 //        image.copyTo(tempImage);
@@ -834,4 +835,6 @@ void GlobalWraping::test(Coordinate** mesh, string str)
 //    }
 //
 }
+
+
 
