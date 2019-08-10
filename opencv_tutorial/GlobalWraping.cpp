@@ -1,24 +1,33 @@
 #include "GlobalWraping.h"
-extern "C"
-{
-    #include "lsd.h";
-}
+
 GlobalWraping::GlobalWraping(Mat& _image, Mat& _mask, Point** mesh, int _meshRows, int _meshCols)
     : image(_image), mask(_mask), meshRows(_meshRows), meshCols(_meshCols)
 {
     cols = image.cols;
     rows = image.rows;
+    lastCost = 0;
     meshVertex = new Coordinate * [meshRows + 1];
+    newMeshVertex = new Coordinate * [meshRows + 1];
     meshLineSegment = new vector<LineSegment> * [meshRows];
     meshLineBilinearWeight = new vector<MatrixXd> * [meshRows];
     meshLineRadianBin = new vector<pair<double, int>>* [meshRows];
+    meshLineRotation = new vector<double> * [meshRows];
+#ifdef DRAW_LINE
+    meshLinePointBilinearWeight = new vector<pair<MatrixXd, MatrixXd>>* [meshRows];
+#endif // DRAW_LINE
+
     for (int i = 0; i <= meshRows; i++) {
         if (i < meshRows) {
             meshLineSegment[i] = new vector<LineSegment>[meshCols];
             meshLineBilinearWeight[i] = new vector<MatrixXd>[meshCols];
-            meshLineRadianBin[i] = new vector<pair<double, int>> [meshCols];
+            meshLineRadianBin[i] = new vector<pair<double, int>>[meshCols];
+            meshLineRotation[i] = new vector<double>[meshCols];
+#ifdef DRAW_LINE
+            meshLinePointBilinearWeight[i] = new vector<pair<MatrixXd, MatrixXd>>[meshCols];
+#endif // DRAW_LINE
         }
         meshVertex[i] = new Coordinate[meshCols + 1];
+        newMeshVertex[i] = new Coordinate[meshCols + 1];
         for (int j = 0; j <= meshCols; j++) {
             meshVertex[i][j].col = mesh[i][j].x;
             meshVertex[i][j].row = mesh[i][j].y;
@@ -27,7 +36,7 @@ GlobalWraping::GlobalWraping(Mat& _image, Mat& _mask, Point** mesh, int _meshRow
     meshShapeEnergy.resize(8 * meshRows * meshCols, 8 * meshRows * meshCols);
     meshToVertex.resize(8 * meshRows * meshCols, 2 * (meshRows + 1) * (meshCols + 1));
     boundaryEnergy.resize(2 * (meshRows + 1) * (meshCols + 1), 2 * (meshRows + 1) * (meshCols + 1));
-    B = VectorXd::Zero(2 * (meshRows + 1) * (meshCols + 1));
+    boundaryY = VectorXd::Zero(2 * (meshRows + 1) * (meshCols + 1));
 
 }
 
@@ -87,19 +96,54 @@ void GlobalWraping::calcMeshShapeEnergy()
 
 void GlobalWraping::calcBoundaryEnergy()
 {
+    boundaryEnergy.setZero();
     for (int i = 0; i <= meshCols; i++) {
         boundaryEnergy.insert(i * 2 + 1, i * 2 + 1) = 1;
         boundaryEnergy.insert(i * 2 + 2 * meshRows * (meshCols + 1) + 1, i * 2 + 2 * meshRows * (meshCols + 1) + 1) = 1;
-        B(i * 2 + 1) = 0;
-        B(i * 2 + 2 * meshRows * (meshCols + 1) + 1) = cols - 1;
+        boundaryY(i * 2 + 1) = 0;
+        boundaryY(i * 2 + 2 * meshRows * (meshCols + 1) + 1) = rows - 1;
     }
     for (int i = 0; i <= meshRows; i++) {
         boundaryEnergy.insert(2 * i * (meshCols + 1), 2 * i * (meshCols + 1)) = 1;
         boundaryEnergy.insert(2 * (i + 1) * (meshCols + 1) - 2, 2 * (i + 1) * (meshCols + 1) - 2) = 1;
-        B(2 * i * (meshCols + 1)) = 0;
-        B(2 * (i + 1) * (meshCols + 1) - 2) = rows - 1;
+        boundaryY(2 * i * (meshCols + 1)) = 0;
+        boundaryY(2 * (i + 1) * (meshCols + 1) - 2) = cols - 1;
     }
     boundaryEnergy.makeCompressed();
+}
+
+void GlobalWraping::calcMeshLineEnergy()
+{
+    meshLineEnergy.setZero();
+    Matrix2d R, C;
+    Matrix<double, 2, 1> eHat;
+    Matrix<double, 8, 1> quadVector;
+    Matrix2d I = Matrix2d::Identity(2, 2);
+    Matrix<double, 2, 8> InterpolationC;
+    double theta;
+    int lineCount = 0;
+    for (int i = 0; i < meshRows; i++) {
+        for (int j = 0; j < meshCols; j++) {
+            for (int k = 0; k < meshLineSegment[i][j].size(); k++)
+            {
+                eHat = meshLineSegment[i][j][k].toVector2D();
+                theta = meshLineRotation[i][j][k];
+                R(0, 0) = cos(theta);
+                R(0, 1) = -sin(theta);
+                R(1, 0) = -R(0, 1);
+                R(1, 1) = R(0, 0);
+                C = R * eHat * (eHat.transpose() * eHat).inverse() * eHat.transpose() * R.transpose() - I;
+                InterpolationC = C * meshLineBilinearWeight[i][j][k];
+                for (int m = 0; m < 2; m++) {
+                    for (int n = 0; n < 8; n++) {
+                        meshLineEnergy.insert(lineCount * 2 + m, 8 * meshCols * i + j * 8 + n) = InterpolationC(m, n);
+                    }
+                }
+                lineCount++;
+            }
+        }
+    }
+    meshLineEnergy.makeCompressed();
 }
 
 void GlobalWraping::detectLineSegment()
@@ -126,7 +170,7 @@ void GlobalWraping::detectLineSegment()
             lineSegments.push_back(LineSegment(line[i * 7], line[i * 7 + 1], line[i * 7 + 2], line[i * 7 + 3]));
         }
     }
-#ifdef SHOW_LSD
+#ifdef DRAW_LSD
     Mat tempImage;
     image.copyTo(tempImage);
     for (int i = 0; i < lineSegments.size(); i++) {
@@ -134,7 +178,7 @@ void GlobalWraping::detectLineSegment()
     }
     imshow("lsd", tempImage);
     waitKey(0);
-#endif // SHOW_LSD
+#endif // DRAW_LSD
 
     cutLineSegment(lineSegments);
     calcBilinearWeight();
@@ -147,6 +191,7 @@ void GlobalWraping::cutLineSegment(vector<LineSegment>& lineSegments)
     Coordinate topLeft, topRight, bottomLeft, bottomRight, linePoint1, linePoint2;
     bool linePoint1InQuad, linePoint2InQuad;
     LineSegment line, newLine;
+    meshLineNumber = 0;
     for (int i = 0; i < meshRows; i++) {
         for (int j = 0; j < meshCols; j++) {
             topLeft = meshVertex[i][j];
@@ -160,7 +205,8 @@ void GlobalWraping::cutLineSegment(vector<LineSegment>& lineSegments)
                 linePoint1InQuad = inQuad(linePoint1, topLeft, topRight, bottomLeft, bottomRight);
                 linePoint2InQuad = inQuad(linePoint2, topLeft, topRight, bottomLeft, bottomRight);
                 if (linePoint1InQuad && linePoint2InQuad) {
-                    meshLineSegment[i][j].push_back(line);
+                    if(line.length() > 2)
+                        meshLineSegment[i][j].push_back(line);
                 }
                 else if (linePoint1InQuad) {
                     intersectionPoints = getIntersectionWithQuad(line, topLeft, topRight, bottomLeft, bottomRight);
@@ -172,7 +218,8 @@ void GlobalWraping::cutLineSegment(vector<LineSegment>& lineSegments)
                     }
                     assert(inQuad(newLine.toCord1(), topLeft, topRight, bottomLeft, bottomRight));
                     assert(inQuad(newLine.toCord2(), topLeft, topRight, bottomLeft, bottomRight));
-                    meshLineSegment[i][j].push_back(newLine);
+                    if (newLine.length() > 2)
+                        meshLineSegment[i][j].push_back(newLine);
                 }
                 else if (linePoint2InQuad) {
                     intersectionPoints = getIntersectionWithQuad(line, topLeft, topRight, bottomLeft, bottomRight);
@@ -184,9 +231,10 @@ void GlobalWraping::cutLineSegment(vector<LineSegment>& lineSegments)
                     }
                     assert(inQuad(newLine.toCord1(), topLeft, topRight, bottomLeft, bottomRight));
                     assert(inQuad(newLine.toCord2(), topLeft, topRight, bottomLeft, bottomRight));
-                    meshLineSegment[i][j].push_back(newLine);
+                    if (newLine.length() > 2)
+                        meshLineSegment[i][j].push_back(newLine);
                 }
-                else{
+                else {
                     intersectionPoints = getIntersectionWithQuad(line, topLeft, topRight, bottomLeft, bottomRight);
                     if (intersectionPoints.size() == 2) {
                         newLine.col1 = intersectionPoints[0].col;
@@ -195,12 +243,15 @@ void GlobalWraping::cutLineSegment(vector<LineSegment>& lineSegments)
                         newLine.row2 = intersectionPoints[1].row;
                         assert(inQuad(newLine.toCord1(), topLeft, topRight, bottomLeft, bottomRight));
                         assert(inQuad(newLine.toCord2(), topLeft, topRight, bottomLeft, bottomRight));
-                        meshLineSegment[i][j].push_back(newLine);
+                        if (newLine.length() > 2)
+                            meshLineSegment[i][j].push_back(newLine);
                     }
                 }
             }
+            meshLineNumber += meshLineSegment[i][j].size();
         }
     }
+    meshLineEnergy.resize(2 * meshLineNumber, 8 * meshCols * meshRows);
 }
 
 bool GlobalWraping::inQuad(Coordinate point, Coordinate topLeft, Coordinate topRight, Coordinate bottomLeft, Coordinate bottomRight)
@@ -370,19 +421,19 @@ bool GlobalWraping::lineIntersectLine(LineSegment line, double slope, double int
 BilinearWeight GlobalWraping::getBilinearWeight(Coordinate point, Coordinate topLeft, Coordinate topRight, Coordinate bottomLeft, Coordinate bottomRight)
 {
     /*
-    * 
+    *
     * X(u,v) = A + (B-A)*u + (C-A)*v + (A-B+D-C)*u*v
-    * 
+    *
     * X(u,v)-A = (B-A)*u + (C-A)*v + (A-B+D-C)*u*v
     * --------   -----     -----     ---------
     *     ^        ^         ^           ^
     *     H        E         F           G
-    * 
+    *
     * H = E*u + F*v + G*u*v
     * use x and y to solve
-    * 
-    * 
-    * 
+    *
+    *
+    *
     */
     Coordinate E = topRight - topLeft;
     Coordinate F = bottomLeft - topLeft;
@@ -458,7 +509,7 @@ void GlobalWraping::calcBilinearWeight()
     LineSegment tempLine;
     double coefA1, coefB1, coefC1, coefD1, coefA2, coefB2, coefC2, coefD2, radian;
     BilinearWeight bilinearWeight1, bilinearWeight2;
-    MatrixXd bilinearInterpolation = MatrixXd::Zero(2, 8), bilinearInterpolation2 = MatrixXd::Zero(2, 8);
+    MatrixXd bilinearInterpolation = MatrixXd::Zero(2, 8), bilinearInterpolation1 = MatrixXd::Zero(2, 8), bilinearInterpolation2 = MatrixXd::Zero(2, 8);
     for (int i = 0; i < meshRows; i++) {
         for (int j = 0; j < meshCols; j++) {
             topLeft = meshVertex[i][j];
@@ -489,6 +540,25 @@ void GlobalWraping::calcBilinearWeight()
                 bilinearInterpolation(1, 5) = coefC1 - coefC2;
                 bilinearInterpolation(1, 7) = coefD1 - coefD2;
                 meshLineBilinearWeight[i][j].push_back(bilinearInterpolation);
+#ifdef DRAW_LINE
+                bilinearInterpolation1(0, 0) = coefA1;
+                bilinearInterpolation1(0, 2) = coefB1;
+                bilinearInterpolation1(0, 4) = coefC1;
+                bilinearInterpolation1(0, 6) = coefD1;
+                bilinearInterpolation1(1, 1) = coefA1;
+                bilinearInterpolation1(1, 3) = coefB1;
+                bilinearInterpolation1(1, 5) = coefC1;
+                bilinearInterpolation1(1, 7) = coefD1;
+                bilinearInterpolation2(0, 0) = coefA2;
+                bilinearInterpolation2(0, 2) = coefB2;
+                bilinearInterpolation2(0, 4) = coefC2;
+                bilinearInterpolation2(0, 6) = coefD2;
+                bilinearInterpolation2(1, 1) = coefA2;
+                bilinearInterpolation2(1, 3) = coefB2;
+                bilinearInterpolation2(1, 5) = coefC2;
+                bilinearInterpolation2(1, 7) = coefD2;
+                meshLinePointBilinearWeight[i][j].push_back(make_pair(bilinearInterpolation1, bilinearInterpolation2));
+#endif // DRAW_LINE
             }
         }
     }
@@ -513,63 +583,255 @@ void GlobalWraping::calcRadianBin()
             {
                 lineVector = meshLineBilinearWeight[i][j][k] * quadVector;
                 radian = atan(lineVector(1) / lineVector(0)) + PI / 2;
-                bin = floor(radian / binWidth);
+                bin = (int)floor(radian / binWidth);
                 assert(radian >= 0 && radian <= PI);
                 assert(bin >= 0 && bin < 50);
                 meshLineRadianBin[i][j].push_back(make_pair(radian, bin));
+                meshLineRotation[i][j].push_back(0.0);
             }
         }
     }
 }
 
-void GlobalWraping::drawMesh(bool drawLine)
+void GlobalWraping::updateV()
+{
+    // min ||A * x - Y||^2
+    // solve A' * A * X = A' * Y
+    SparseMatrix<double, RowMajor> shape, line, boundary;
+    shape = sqrt(1.0 / (meshRows * meshCols)) * (meshShapeEnergy * meshToVertex);
+    line = sqrt(lambdaL / meshLineNumber) * (meshLineEnergy * meshToVertex);
+    boundary = sqrt(lambdaB) * boundaryEnergy;
+    SparseMatrix<double, RowMajor> temp(shape.rows() + line.rows(), shape.cols());
+    temp.topRows(shape.rows()) = shape;
+    temp.bottomRows(line.rows()) = line;
+    SparseMatrix<double, RowMajor> A(temp.rows() + boundary.rows(), temp.cols());
+    A.topRows(temp.rows()) = temp;
+    A.bottomRows(boundary.rows()) = boundary;
+    VectorXd Y = VectorXd::Zero(A.rows());
+    Y.tail(boundaryY.size()) = sqrt(lambdaB) * boundaryY;
+    SparseMatrix<double, ColMajor> AtA = A.transpose() * A;
+    AtA.makeCompressed();
+    VectorXd AtY = A.transpose() * Y;
+    SimplicialLDLT<SparseMatrix<double>> solver;
+    solver.compute(AtA);
+    assert(solver.info() == Success);
+    VectorXd X = solver.solve(AtY);
+    assert(solver.info() == Success);
+    for (int i = 0; i <= meshRows; i++) {
+        for (int j = 0; j <= meshCols; j++) {
+            newMeshVertex[i][j].col = X(i * (meshCols + 1) * 2 + j * 2);
+            newMeshVertex[i][j].row = X(i * (meshCols + 1) * 2 + j * 2 + 1);
+        }
+    }
+
+}
+
+void GlobalWraping::drawMesh(Coordinate** mesh)
 {
     Mat tempImage;
     image.copyTo(tempImage);
     for (int i = 0; i < meshRows; i++) {
         for (int j = 0; j < meshCols; j++) {
-            line(tempImage, meshVertex[i][j].toPoint(), meshVertex[i + 1][j].toPoint(), GREEN);
-            line(tempImage, meshVertex[i][j].toPoint(), meshVertex[i][j + 1].toPoint(), GREEN);
+            line(tempImage, mesh[i][j].toPoint(), mesh[i + 1][j].toPoint(), GREEN);
+            line(tempImage, mesh[i][j].toPoint(), mesh[i][j + 1].toPoint(), GREEN);
         }
-        line(tempImage, meshVertex[i][meshCols].toPoint(), meshVertex[i + 1][meshCols].toPoint(), GREEN);
+        line(tempImage, mesh[i][meshCols].toPoint(), mesh[i + 1][meshCols].toPoint(), GREEN);
     }
     for (int j = 0; j < meshCols; j++) {
-        line(tempImage, meshVertex[meshRows][j].toPoint(), meshVertex[meshRows][j + 1].toPoint(), GREEN);
+        line(tempImage, mesh[meshRows][j].toPoint(), mesh[meshRows][j + 1].toPoint(), GREEN);
     }
-    //if (drawLine) {
-    //    for (int i = 0; i < meshRows; i++) {
-    //        for (int j = 0; j < meshCols; j++) {
-    //            cout << "mesh: " << i << ", " << j << endl;
-    //            for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
-    //                line(tempImage, meshLineSegment[i][j][k].toPoint1(), meshLineSegment[i][j][k].toPoint2(), BLUE);
-    //            }
-    //            imshow("mesh", tempImage);
-    //            waitKey(0);
-    //        }
-    //    }
-    //}
-    if (drawLine) {
-        VectorXd quadVector = VectorXd::Zero(8), lineVector;
-        for (int i = 0; i < meshRows; i++) {
-            for (int j = 0; j < meshCols; j++) {
-                cout << "mesh: " << i << ", " << j << endl;
-                quadVector(0) = meshVertex[i][j].col;
-                quadVector(1) = meshVertex[i][j].row;
-                quadVector(2) = meshVertex[i][j + 1].col;
-                quadVector(3) = meshVertex[i][j + 1].row;
-                quadVector(4) = meshVertex[i + 1][j].col;
-                quadVector(5) = meshVertex[i + 1][j].row;
-                quadVector(6) = meshVertex[i + 1][j + 1].col;
-                quadVector(7) = meshVertex[i + 1][j + 1].row;
-                for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
-                    line(tempImage, meshLineSegment[i][j][k].toPoint1(), meshLineSegment[i][j][k].toPoint2(), BLUE);
-                }
-                imshow("mesh", tempImage);
-                waitKey(0);
+#ifdef DRAW_LINE
+    VectorXd quadVector = VectorXd::Zero(8), lineVector;
+    VectorXd point1, point2;
+    for (int i = 0; i < meshRows; i++) {
+        for (int j = 0; j < meshCols; j++) {
+            quadVector(0) = mesh[i][j].col;
+            quadVector(1) = mesh[i][j].row;
+            quadVector(2) = mesh[i][j + 1].col;
+            quadVector(3) = mesh[i][j + 1].row;
+            quadVector(4) = mesh[i + 1][j].col;
+            quadVector(5) = mesh[i + 1][j].row;
+            quadVector(6) = mesh[i + 1][j + 1].col;
+            quadVector(7) = mesh[i + 1][j + 1].row;
+            for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
+                point1 = meshLinePointBilinearWeight[i][j][k].first * quadVector;
+                point2 = meshLinePointBilinearWeight[i][j][k].second * quadVector;
+                line(tempImage, Point(point1(0), point1(1)), Point(point2(0), point2(1)), BLUE);
             }
         }
     }
+#endif // DRAW_LINE
     imshow("mesh", tempImage);
     waitKey(0);
+}
+
+void GlobalWraping::calcCost(Coordinate** mesh)
+{
+    MatrixXd shapeCost, boundaryCost, lineCost;
+    VectorXd y(2 * (meshRows + 1) * (meshCols + 1));
+    for (int i = 0; i <= meshRows; i++) {
+        for (int j = 0; j <= meshCols; j++) {
+            y(i * 2 * (meshCols + 1) + 2 * j) = mesh[i][j].col;
+            y(i * 2 * (meshCols + 1) + 2 * j + 1) = mesh[i][j].row;
+        }
+    }
+    shapeCost = (1.0 / (meshRows * meshCols)) * (y.transpose() * meshToVertex.transpose() * meshShapeEnergy.transpose() * meshShapeEnergy * meshToVertex * y);
+    cout << "        shapeCost: " << shapeCost(0, 0) << endl;
+    lineCost = (lambdaL / meshLineNumber) * (y.transpose() * meshToVertex.transpose() * meshLineEnergy.transpose() * meshLineEnergy * meshToVertex * y);
+    cout << "        lineCost: " << lineCost(0, 0) << endl;
+    boundaryCost = lambdaB * (boundaryY.transpose() * boundaryY - y.transpose() * boundaryEnergy.transpose() * boundaryEnergy * y);
+    cout << "        boundaryCost: " << boundaryCost(0, 0) << endl;
+    cout << "    Cost: " << shapeCost(0, 0) + lineCost(0, 0) + boundaryCost(0, 0) << endl;
+    cout << "    Delta: " << shapeCost(0, 0) + lineCost(0, 0) + boundaryCost(0, 0) - lastCost << endl;
+    lastLineCost = lineCost(0, 0);
+    lastCost = shapeCost(0, 0) + lineCost(0, 0) + boundaryCost(0, 0);
+}
+
+void GlobalWraping::calcLineCost(Coordinate** mesh)
+{
+    MatrixXd lineCost;
+    VectorXd y(2 * (meshRows + 1) * (meshCols + 1));
+    for (int i = 0; i <= meshRows; i++) {
+        for (int j = 0; j <= meshCols; j++) {
+            y(i * 2 * (meshCols + 1) + 2 * j) = mesh[i][j].col;
+            y(i * 2 * (meshCols + 1) + 2 * j + 1) = mesh[i][j].row;
+        }
+    }
+    lineCost = (lambdaL / meshLineNumber) * (y.transpose() * meshToVertex.transpose() * meshLineEnergy.transpose() * meshLineEnergy * meshToVertex * y);
+    cout << "        lineCost: " << lineCost(0, 0) << endl;
+    cout << "        Delta: " << lineCost(0, 0) - lastLineCost << endl;
+    lastLineCost = lineCost(0, 0);
+}
+
+void GlobalWraping::updateTheta()
+{
+    double radian, delta;
+    VectorXd quadVector = VectorXd::Zero(8), lineVector;
+    double binRotationSum[50] = { 0.0 };
+    int binCount[50] = { 0 }, bin;
+    for (int i = 0; i < meshRows; i++) {
+        for (int j = 0; j < meshCols; j++) {
+            quadVector(0) = newMeshVertex[i][j].col;
+            quadVector(1) = newMeshVertex[i][j].row;
+            quadVector(2) = newMeshVertex[i][j + 1].col;
+            quadVector(3) = newMeshVertex[i][j + 1].row;
+            quadVector(4) = newMeshVertex[i + 1][j].col;
+            quadVector(5) = newMeshVertex[i + 1][j].row;
+            quadVector(6) = newMeshVertex[i + 1][j + 1].col;
+            quadVector(7) = newMeshVertex[i + 1][j + 1].row;
+            for (int k = 0; k < meshLineSegment[i][j].size(); k++)
+            {
+                lineVector = meshLineBilinearWeight[i][j][k] * quadVector;
+                radian = atan(lineVector(1) / lineVector(0)) + PI / 2.0;
+
+                bin = meshLineRadianBin[i][j][k].second;
+                delta = radian - meshLineRadianBin[i][j][k].first;
+                if (delta > PI / 2) {
+                    delta -= PI;
+                }
+                else if (delta < -PI / 2) {
+                    delta += PI;
+                }
+                binRotationSum[bin] += delta;
+                binCount[bin]++;
+            }
+        }
+    }
+    for (int i = 0; i < 50; i++) {
+        if (binCount[i] > 0) {
+            binRotationSum[i] /= (double)binCount[i];
+        }
+        assert(binRotationSum[i] <= PI / 2 && binRotationSum[i] >= -PI / 2);
+    }
+    for (int i = 0; i < meshRows; i++) {
+        for (int j = 0; j < meshCols; j++) {
+            for (int k = 0; k < meshLineSegment[i][j].size(); k++)
+            {
+                meshLineRotation[i][j][k] = binRotationSum[meshLineRadianBin[i][j][k].second];
+            }
+        }
+    }
+}
+
+void GlobalWraping::test(Coordinate** mesh, string str)
+{
+
+    Mat tempImage;
+    image.copyTo(tempImage);
+    for (int i = 0; i < meshRows; i++) {
+        for (int j = 0; j < meshCols; j++) {
+            line(tempImage, mesh[i][j].toPoint(), mesh[i + 1][j].toPoint(), GREEN);
+            line(tempImage, mesh[i][j].toPoint(), mesh[i][j + 1].toPoint(), GREEN);
+        }
+        line(tempImage, mesh[i][meshCols].toPoint(), mesh[i + 1][meshCols].toPoint(), GREEN);
+    }
+    for (int j = 0; j < meshCols; j++) {
+        line(tempImage, mesh[meshRows][j].toPoint(), mesh[meshRows][j + 1].toPoint(), GREEN);
+    }
+#ifdef DRAW_LINE
+    VectorXd quadVector = VectorXd::Zero(8), lineVector;
+    VectorXd point1, point2;
+    for (int i = 0; i < meshRows; i++) {
+        for (int j = 0; j < meshCols; j++) {
+            quadVector(0) = mesh[i][j].col;
+            quadVector(1) = mesh[i][j].row;
+            quadVector(2) = mesh[i][j + 1].col;
+            quadVector(3) = mesh[i][j + 1].row;
+            quadVector(4) = mesh[i + 1][j].col;
+            quadVector(5) = mesh[i + 1][j].row;
+            quadVector(6) = mesh[i + 1][j + 1].col;
+            quadVector(7) = mesh[i + 1][j + 1].row;
+            for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
+                point1 = meshLinePointBilinearWeight[i][j][k].first * quadVector;
+                point2 = meshLinePointBilinearWeight[i][j][k].second * quadVector;
+                line(tempImage, Point(point1(0), point1(1)), Point(point2(0), point2(1)), BLUE);
+
+            }
+        }
+    }
+#endif // DRAW_LINE
+    imshow(str, tempImage);
+    waitKey(0);
+//    for (int count = 0; count < 50; count++) {
+//        Mat tempImage;
+//        image.copyTo(tempImage);
+//        for (int i = 0; i < meshRows; i++) {
+//            for (int j = 0; j < meshCols; j++) {
+//                line(tempImage, mesh[i][j].toPoint(), mesh[i + 1][j].toPoint(), GREEN);
+//                line(tempImage, mesh[i][j].toPoint(), mesh[i][j + 1].toPoint(), GREEN);
+//            }
+//            line(tempImage, mesh[i][meshCols].toPoint(), mesh[i + 1][meshCols].toPoint(), GREEN);
+//        }
+//        for (int j = 0; j < meshCols; j++) {
+//            line(tempImage, mesh[meshRows][j].toPoint(), mesh[meshRows][j + 1].toPoint(), GREEN);
+//        }
+//#ifdef DRAW_LINE
+//        VectorXd quadVector = VectorXd::Zero(8), lineVector;
+//        VectorXd point1, point2;
+//        for (int i = 0; i < meshRows; i++) {
+//            for (int j = 0; j < meshCols; j++) {
+//                quadVector(0) = mesh[i][j].col;
+//                quadVector(1) = mesh[i][j].row;
+//                quadVector(2) = mesh[i][j + 1].col;
+//                quadVector(3) = mesh[i][j + 1].row;
+//                quadVector(4) = mesh[i + 1][j].col;
+//                quadVector(5) = mesh[i + 1][j].row;
+//                quadVector(6) = mesh[i + 1][j + 1].col;
+//                quadVector(7) = mesh[i + 1][j + 1].row;
+//                for (int k = 0; k < meshLineSegment[i][j].size(); k++) {
+//                    if (meshLineRadianBin[i][j][k].second == count) {
+//                        point1 = meshLinePointBilinearWeight[i][j][k].first * quadVector;
+//                        point2 = meshLinePointBilinearWeight[i][j][k].second * quadVector;
+//                        line(tempImage, Point(point1(0), point1(1)), Point(point2(0), point2(1)), BLUE);
+//                    }
+//
+//                }
+//            }
+//        }
+//#endif // DRAW_LINE
+//        imshow(str, tempImage);
+//        waitKey(0);
+//    }
+//
 }
 

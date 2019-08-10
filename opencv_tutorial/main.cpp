@@ -116,12 +116,27 @@ int main(int argc, const char* argv[])
 #endif // !SKIP_LOCAL
 
 
-    gw.drawMesh();
+    gw.drawMesh(gw.meshVertex);
     gw.calcMeshToVertex();
     gw.calcBoundaryEnergy();
     gw.calcMeshShapeEnergy();
     gw.detectLineSegment();
-    gw.drawMesh(true);
+    gw.calcCost(gw.meshVertex);
+    gw.test(gw.meshVertex, "mesh");
+    gw.calcMeshLineEnergy();
+    for (int i = 0; i < 10; i++) {
+        cout << "iter: " << i + 1 << endl;
+        gw.updateV();
+        //gw.test(gw.newMeshVertex, "updateV");
+        gw.calcCost(gw.newMeshVertex);
+        gw.updateTheta();
+        gw.calcMeshLineEnergy();
+        //gw.test(gw.newMeshVertex, "updateV");
+
+        gw.calcLineCost(gw.newMeshVertex);
+        //gw.calcCost(gw.newMeshVertex);
+        gw.drawMesh(gw.newMeshVertex);
+    }
     waitKey(0);
 
     return 0;

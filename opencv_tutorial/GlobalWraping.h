@@ -3,12 +3,19 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <Eigen/SparseCore>
+#include <Eigen/SparseQR>
+#include <Eigen/SparseCholesky>
 #include <Eigen/Dense>
 #include <iostream>
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include "Utils.h"
 
+extern "C"
+{
+#include "lsd.h";
+}
 
 using namespace std;
 using namespace cv;
@@ -59,6 +66,12 @@ struct LineSegment {
     const Coordinate toCord2() {
         return Coordinate(col2, row2);
     }
+    const Vector2d toVector2D() {
+        return Vector2d(col1 - col2, row1 - row2);
+    }
+    const double length() {
+        return sqrt((col1 - col2) * (col1 - col2) + (row1 - row2) * (row1 - row2));
+    }
 };
 
 class GlobalWraping
@@ -68,35 +81,48 @@ public:
     void calcMeshToVertex();
     void calcMeshShapeEnergy();
     void calcBoundaryEnergy();
+    void calcMeshLineEnergy();
     void detectLineSegment();
     void cutLineSegment(vector<LineSegment>& lineSegments);
     void calcBilinearWeight();
     void calcRadianBin();
+    void updateV();
     bool inQuad(Coordinate point, Coordinate topLeft, Coordinate topRight, Coordinate bottomLeft, Coordinate bottomRight);
     vector<Coordinate> getIntersectionWithQuad(LineSegment line, Coordinate topLeft, Coordinate topRight, Coordinate bottomLeft, Coordinate bottomRight);
     bool lineIntersectLine(LineSegment line, double slope, double intersect, bool vertical, Coordinate& intersectPoint);
     BilinearWeight getBilinearWeight(Coordinate point, Coordinate topLeft, Coordinate topRight, Coordinate bottomLeft, Coordinate bottomRight);
-    void drawMesh(bool drawLine = false);
+    void drawMesh(Coordinate** mesh);
+    void calcCost(Coordinate** mesh);
+    void calcLineCost(Coordinate** mesh);
+    void updateTheta();
+    void test(Coordinate** mesh, string str);
     Mat& image;
     Mat& mask;
     int cols, rows, meshRows, meshCols;
+    int meshLineNumber;
     Coordinate** meshVertex;
+    Coordinate** newMeshVertex;
     int*** meshArray;
     vector<LineSegment>** meshLineSegment;
     vector<MatrixXd>** meshLineBilinearWeight;
     vector<pair<MatrixXd, MatrixXd>>** meshLinePointBilinearWeight;
     vector<pair<double, int>>** meshLineRadianBin;
-    VectorXd B;
-    SparseMatrix<double> meshToVertex;
-    SparseMatrix<double> meshShapeEnergy;
-    SparseMatrix<double> boundaryEnergy;
+    vector<double>** meshLineRotation;
+    VectorXd boundaryY;
+    SparseMatrix<double, RowMajor> meshToVertex;
+    SparseMatrix<double, RowMajor> meshShapeEnergy;
+    SparseMatrix<double, RowMajor> meshLineEnergy;
+    SparseMatrix<double, RowMajor> boundaryEnergy;
     const double INF = 10e8;
     const double PI = 3.1415926535;
     const double EPSILON = 1e-4;
     const Scalar RED = Scalar(0, 0, 255);
     const Scalar BLUE = Scalar(255, 0, 0);
     const Scalar GREEN = Scalar(0, 255, 0);
-
+    const double lambdaB = 10e8;
+    const double lambdaL = 100;
+    double lastCost;
+    double lastLineCost;
 
 };
 

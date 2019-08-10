@@ -4,7 +4,8 @@
 //#define SHOW_COST
 #define SKIP_LOCAL
 //#define SAVE_MESH
-#define SHOW_LSD
+//#define DRAW_LSD
+#define DRAW_LINE
 class Utils
 {
 };
