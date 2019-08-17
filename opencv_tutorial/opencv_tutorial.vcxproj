@@ -19,17 +19,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="GlobalWraping.cpp" />
+    <ClCompile Include="GlobalWarping.cpp" />
     <ClCompile Include="lsd.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="SeamCarving.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="GlobalWraping.h" />
+    <ClInclude Include="GlobalWarping.h" />
     <ClInclude Include="lsd.h" />
     <ClInclude Include="SeamCarving.h" />
     <ClInclude Include="Utils.h" />
+    <ClInclude Include="util.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -89,6 +90,11 @@
     <IncludePath>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glew-2.2.0\include;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glfw-3.3.bin.WIN64\include;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\freeglut\include;$(IncludePath)</IncludePath>
     <LibraryPath>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glew-2.2.0\build\lib\Debug\x64;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glfw-3.3.bin.WIN64\lib-vc2019;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\freeglut\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\freeglut\include;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glew-2.2.0\build\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\freeglut\lib\x64;C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\glew-2.2.0\build\lib\Release\x64;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(SourcePath)</SourcePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -137,12 +143,14 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <OpenMPSupport>false</OpenMPSupport>
-      <AdditionalOptions> /Zc:twoPhase- %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>C:\Users\hlh98\source\repos\rect_pano\opencv_tutorial\Eigen;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>opengl32.lib;freeglut.lib;glew32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

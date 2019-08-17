@@ -1,98 +1,75 @@
-﻿#include <opencv2/core.hpp>
+﻿
+#include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <fstream>
 #include <GL/glut.h>
 #include "SeamCarving.h"
-#include "GlobalWraping.h"
+#include "GlobalWarping.h"
+#include "util.h"
 using namespace std;
 
 
 
-cv::Mat image;
+cv::Mat glImage;
 int glMeshRows, glMeshCols;
 Coordinate** meshVertex;
 Coordinate** newMeshVertex;
+Coordinate** meshVertex1;
+Coordinate** newMeshVertex1;
 GLuint texGround;
-
+GLbyte* colorArr;
+double scaleRatio, scaleX, scaleY;
+string imageName;
 void display();
-GLuint matToTexture(cv::Mat mat, GLenum minFilter = GL_LINEAR,
-    GLenum magFilter = GL_LINEAR, GLenum wrapFilter = GL_REPEAT);
+void keyboard(unsigned char key, int x, int y);
+void updateGlobalVariable(GlobalWarping& gw, double ratio);
+void saveImage();
+
+GLuint matToTexture(cv::Mat mat, GLenum minFilter = GL_LINEAR, GLenum magFilter = GL_LINEAR, GLenum wrapFilter = GL_REPEAT);
 
 int main(int argc, char** argv)
 {
-    //if (argc == 1) {
-    //	std::cout << "Please enter the file name." << endl;
-    //	return 1;
-    //}
-    string maskFilename = "pano-mask-test.png";
-    string imageFilename = "pano-test.png";
-    image = cv::imread(imageFilename);
+    if (argc == 1) {
+    	std::cout << "Please enter the file name." << endl;
+    	return 1;
+    }
+    imageName = argv[1];
+    string imageFilename = imageName+"_input.jpg";
+    string maskFilename = imageName+"_input_mask.jpg";
+    cv::Mat image = cv::imread(imageFilename);
     cv::Mat mask = cv::imread(maskFilename, cv::IMREAD_GRAYSCALE);
-#ifndef SKIP_LOCAL
 
+    scaleRatio = sqrt(WRAPING_RESOLUTION / (image.cols * image.rows));
+    cv::Mat scaledImage, scaledMask;
+    cv::resize(image, scaledImage, cv::Size(), scaleRatio, scaleRatio);
+    cv::resize(mask, scaledMask, cv::Size(), scaleRatio, scaleRatio);
 
+    image.copyTo(glImage);
 
-    SeamCarving sc(image, mask);
+    auto start = chrono::system_clock::now();
+    auto start2 = chrono::system_clock::now();
+    SeamCarving sc(scaledImage, scaledMask);
     BoundarySegment bs = sc.getLongestBoundary();
-    //if (image.empty()) {
-    //	cout << "Cannot open file." << endl;
-    //	return 1;
-    //}
-
-    //string maskFilename1 = "pano-mask-5.png";
-    //string imageFilename1 = "pano-5.png";
-    //Mat image1 = imread(imageFilename1);
-    //Mat mask1 = imread(maskFilename1, IMREAD_GRAYSCALE);
-    //SeamCarving sc1(image1, mask1);
-    //BoundarySegment bs1;
-    //double time = 0, time1 = 0;
-    //for (int i = 0; i < 100; i++) {
-    //	auto start = chrono::system_clock::now();
-    //	bs = sc.getLongestBoundary();
-    //	sc.calcCost(bs);
-    //	sc.insertSeam(bs);
-    //	time += double((chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start)).count());
-    //	start = chrono::system_clock::now();
-    //	bs1 = sc1.getLongestBoundary();
-    //	sc1.calcCost(bs1);
-    //	sc1.insertSeam(bs1);
-    //	time1 += double((chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start)).count());
-    //}
-    //cout << time << endl << time1 << endl;
-    //imshow("result1", sc1.grayImage);
-
-    //bs = sc.getLongestBoundary();
-    //sc.calcCost(bs);
-    //sc.showCost(bs);
-    //sc.insertSeam(bs);
-    //sc.getLongestBoundary();
-
-
-    //namedWindow("seam", WINDOW_AUTOSIZE | WINDOW_KEEPRATIO | WINDOW_GUI_EXPANDED);
     while (bs.direction != None) {
-        bs.print();
+        //bs.print();
         sc.calcCost(bs);
         //sc.showCost(bs);
-
         sc.insertSeam(bs);
-
         bs = sc.getLongestBoundary();
     }
 
-
-
 #ifdef USE_GRAY
-    imshow("result", sc.expandGrayImage);
-    imwrite("result.png", sc.expandGrayImage);
+    //imshow("result", sc.expandGrayImage);
+    //imwrite(imageName+"result.jpg", sc.expandGrayImage);
 #endif // USE_GRAY
 #ifdef USE_RGB
     imshow("result", sc.expandImage);
-    imwrite("result.png", sc.expandImage);
+    imwrite("result.jpg", sc.expandImage);
 #endif // USE_RGB
 #ifdef SHOW_COST
-    imwrite("seam.png", sc.seamImage);
+    imwrite(imageName+"_seam.jpg", sc.seamImage);
 #endif // SHOW_COST
     sc.placeMesh();
 
@@ -106,91 +83,46 @@ int main(int argc, char** argv)
     }
     return 0;
 #endif // SAVE_MESH
-
-    
-    
-    
-    GlobalWraping gw(image, mask, sc.mesh, sc.meshRows, sc.meshCols);
-#else
-    ifstream in("mesh.txt");
-    int tempMeshRows, tempMeshCols;
-    in >> tempMeshCols >> tempMeshRows;
-    cv::Point** mesh = new cv::Point * [tempMeshRows + 1];
-    for (int i = 0; i <= tempMeshRows; i++) {
-        mesh[i] = new cv::Point[tempMeshCols + 1];
-        for (int j = 0; j <= tempMeshCols; j++) {
-            in >> mesh[i][j].x >> mesh[i][j].y;
-        }
-    }
-    GlobalWraping gw(image, mask, mesh, tempMeshRows, tempMeshCols);
-
-#endif // !SKIP_LOCAL
-
-
-    gw.drawMesh(gw.meshVertex);
+    double time = double((chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start)).count());
+    cout << "localWraping: " << time << "ms" << endl;
+    start = chrono::system_clock::now();
+    GlobalWarping gw(scaledImage, scaledMask, sc.mesh, sc.meshRows, sc.meshCols);
+    gw.imageName = imageName;
     gw.calcMeshToVertex();
     gw.calcBoundaryEnergy();
     gw.calcMeshShapeEnergy();
     gw.detectLineSegment();
-    gw.calcCost(gw.meshVertex);
-    //gw.test(gw.meshVertex, "mesh");
+    //gw.drawMesh(gw.meshVertex);
+    //gw.calcCost(gw.meshVertex);
     gw.calcMeshLineEnergy();
     for (int i = 0; i < 10; i++) {
-        cout << "iter: " << i + 1 << endl;
         gw.updateV();
-        //gw.test(gw.newMeshVertex, "updateV");
-        gw.calcCost(gw.newMeshVertex);
+        //gw.drawMesh(gw.newMeshVertex);
+        //gw.calcCost(gw.newMeshVertex);
         gw.updateTheta();
         gw.calcMeshLineEnergy();
-        //gw.test(gw.newMeshVertex, "updateV");
-
-        gw.calcLineCost(gw.newMeshVertex);
-        //gw.calcCost(gw.newMeshVertex);
-        //gw.drawMesh(gw.newMeshVertex);
+        //gw.calcLineCost(gw.newMeshVertex);
     }
-    //cv::waitKey(0);
+    time = double((chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start)).count());
+    cout << "globalWraping: " << time << "ms" << endl;
 
-    glMeshCols = gw.meshCols;
-    glMeshRows = gw.meshRows;
-    meshVertex = new Coordinate * [glMeshRows + 1];
-    newMeshVertex = new Coordinate * [glMeshRows + 1];
-    for (int i = 0; i <= glMeshRows; i++) {
-        meshVertex[i] = new Coordinate[glMeshCols + 1];
-        newMeshVertex[i] = new Coordinate[glMeshCols + 1];
-        for (int j = 0; j <= glMeshCols; j++) {
-            meshVertex[i][j].col = gw.meshVertex[i][j].col;
-            meshVertex[i][j].row = gw.meshVertex[i][j].row;
-            newMeshVertex[i][j].col = gw.newMeshVertex[i][j].col;
-            newMeshVertex[i][j].row = gw.newMeshVertex[i][j].row;
-            Coordinate& coord = newMeshVertex[i][j];
-            Coordinate& localcoord = meshVertex[i][j];
-            coord.row /= image.rows;
-            coord.col /= image.cols;
-            coord.row -= 0.5;
-            coord.col -= 0.5;
-            coord.row *= 2;
-            coord.col *= 2;
-            coord.row = median(coord.row, -1, 1);
-            coord.col = median(coord.col, -1, 1);
-            localcoord.row /= image.rows;
-            localcoord.col /= image.cols;
-            localcoord.row = median(localcoord.row, 0, 1);
-            localcoord.col = median(localcoord.col, 0, 1);
-        }
-    }
+    updateGlobalVariable(gw, scaleRatio);
     //glut
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-    glutInitWindowPosition(100, 100);
-    glutInitWindowSize(image.cols, image.rows);
+    glutInitWindowPosition(1, 1);
+    glutInitWindowSize(glImage.cols, glImage.rows);
     glutCreateWindow("rect_pano");
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_TEXTURE_2D);    // 启用纹理
-    texGround = matToTexture(image);
-    glutDisplayFunc(&display);   //注册函数 
+
+    texGround = matToTexture(glImage);
+    glutDisplayFunc(display);   //注册函数 
+    glutKeyboardFunc(keyboard);
     glutMainLoop(); //循环调用
     return 0;
 }
+
 void display()
 {
     glLoadIdentity();
@@ -213,10 +145,10 @@ void display()
             Coordinate global_right_bottom = newMeshVertex[row + 1][col + 1];
 
             glBegin(GL_QUADS);
-            glTexCoord2d(local_right_top.col, local_right_top.row); glVertex3d(global_right_top.col, -1 * global_right_top.row, 0.0f);
-            glTexCoord2d(local_right_bottom.col, local_right_bottom.row); glVertex3d(global_right_bottom.col, -1 * global_right_bottom.row, 0.0f);
-            glTexCoord2d(local_left_bottom.col, local_left_bottom.row);	glVertex3d(global_left_bottom.col, -1 * global_left_bottom.row, 0.0f);
-            glTexCoord2d(local_left_top.col, local_left_top.row); glVertex3d(global_left_top.col, -1 * global_left_top.row, 0.0f);
+            glTexCoord2d(local_right_top.col, local_right_top.row); glVertex3d(global_right_top.col, -global_right_top.row, 0.0f);
+            glTexCoord2d(local_right_bottom.col, local_right_bottom.row); glVertex3d(global_right_bottom.col, -global_right_bottom.row, 0.0f);
+            glTexCoord2d(local_left_bottom.col, local_left_bottom.row);	glVertex3d(global_left_bottom.col, -global_left_bottom.row, 0.0f);
+            glTexCoord2d(local_left_top.col, local_left_top.row); glVertex3d(global_left_top.col, -global_left_top.row, 0.0f);
             glEnd();
 
         }
@@ -225,9 +157,56 @@ void display()
 
 }
 
+void updateGlobalVariable(GlobalWarping& gw, double ratio)
+{
+    gw.stretch();
+    scaleX = gw.scaleX;
+    scaleY = gw.scaleY;
+    glMeshCols = gw.meshCols;
+    glMeshRows = gw.meshRows;
+    meshVertex = new Coordinate * [glMeshRows + 1];
+    newMeshVertex = new Coordinate * [glMeshRows + 1];
+    meshVertex1 = new Coordinate * [glMeshRows + 1];
+    newMeshVertex1 = new Coordinate * [glMeshRows + 1];
+    for (int i = 0; i <= glMeshRows; i++) {
+        meshVertex[i] = new Coordinate[glMeshCols + 1];
+        newMeshVertex[i] = new Coordinate[glMeshCols + 1];
+        meshVertex1[i] = new Coordinate[glMeshCols + 1];
+        newMeshVertex1[i] = new Coordinate[glMeshCols + 1];
+        for (int j = 0; j <= glMeshCols; j++) {
+            meshVertex[i][j].col = gw.meshVertex[i][j].col / ratio;
+            meshVertex[i][j].row = gw.meshVertex[i][j].row / ratio;
+            newMeshVertex[i][j].col = gw.newMeshVertex[i][j].col / ratio;
+            newMeshVertex[i][j].row = gw.newMeshVertex[i][j].row / ratio;
+            meshVertex1[i][j].col = gw.meshVertex[i][j].col / ratio;
+            meshVertex1[i][j].row = gw.meshVertex[i][j].row / ratio;
+            newMeshVertex1[i][j].col = gw.newMeshVertex[i][j].col / ratio;
+            newMeshVertex1[i][j].row = gw.newMeshVertex[i][j].row / ratio;
+            Coordinate& coord = newMeshVertex[i][j];
+            Coordinate& localcoord = meshVertex[i][j];
+            coord.row = coord.row / glImage.rows * 2.0 - 1;
+            coord.col = coord.col / glImage.cols * 2.0 - 1;
+            coord.row = median(coord.row, -1, 1);
+            coord.col = median(coord.col, -1, 1);
+            localcoord.row /= glImage.rows;
+            localcoord.col /= glImage.cols;
+            localcoord.row = median(localcoord.row, 0, 1);
+            localcoord.col = median(localcoord.col, 0, 1);
+            assert(coord.row >= -1 && coord.row <= 1);
+            assert(coord.col >= -1 && coord.col <= 1);
+            assert(localcoord.row >= 0 && localcoord.row <= 1);
+            assert(localcoord.col >= 0 && localcoord.col <= 1);
+        }
+    }
+    colorArr = new GLbyte[glImage.cols * glImage.rows *3];
+}
 
 GLuint matToTexture(cv::Mat mat, GLenum minFilter, GLenum magFilter, GLenum wrapFilter)
 {
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
     //cv::flip(mat, mat, 0);
     // Generate a number for our textureID's unique handle
     GLuint textureID;
@@ -263,7 +242,6 @@ GLuint matToTexture(cv::Mat mat, GLenum minFilter, GLenum magFilter, GLenum wrap
     {
         inputColourFormat = GL_LUMINANCE;
     }
-
     // Create the texture
     glTexImage2D(GL_TEXTURE_2D,     // Type of texture
         0,                 // Pyramid level (for mip-mapping) - 0 is the top level
@@ -280,3 +258,55 @@ GLuint matToTexture(cv::Mat mat, GLenum minFilter, GLenum magFilter, GLenum wrap
     return textureID;
 }
 
+void saveImage(){
+    GLint viewPort[4] = { 0 };
+    glGetIntegerv(GL_VIEWPORT, viewPort);
+    cv::Mat img(viewPort[3], viewPort[2], CV_8UC3);
+    //use fast 4-byte alignment (default anyway) if possible
+    glPixelStorei(GL_PACK_ALIGNMENT, (img.step & 3) ? 1 : 4);
+    //set length of one complete row in destination data (doesn't need to equal img.cols)
+    glPixelStorei(GL_PACK_ROW_LENGTH, img.step / img.elemSize());
+    glReadPixels(viewPort[0], viewPort[1], viewPort[2], viewPort[3], GL_BGR_EXT, GL_UNSIGNED_BYTE, img.data);
+    cv::flip(img, img, 0);
+    cv::Mat tempImage(glImage.rows, glImage.cols, CV_8UC3);
+    cv::Mat stretchImage;
+    cv::resize(img, tempImage, tempImage.size(), 0, 0, cv::INTER_CUBIC);
+    cv::resize(tempImage, stretchImage, cv::Size(), 1.0/scaleX, 1.0/scaleY, cv::INTER_CUBIC);
+
+    cv::imwrite(imageName+"_result.jpg", tempImage);
+    cv::imwrite(imageName + "_result_stretch.jpg", stretchImage);
+    for (int i = 0; i < glMeshRows; i++) {
+        for (int j = 0; j < glMeshCols; j++) {
+            cv::line(tempImage, newMeshVertex1[i][j].toPoint(), newMeshVertex1[i + 1][j].toPoint(), cv::Scalar(0, 255, 0), 2);
+            cv::line(tempImage, newMeshVertex1[i][j].toPoint(), newMeshVertex1[i][j + 1].toPoint(), cv::Scalar(0, 255, 0), 2);
+        }
+        cv::line(tempImage, newMeshVertex1[i][glMeshCols].toPoint(), newMeshVertex1[i + 1][glMeshCols].toPoint(), cv::Scalar(0, 255, 0), 2);
+    }
+    for (int j = 0; j < glMeshCols; j++) {
+        cv::line(tempImage, newMeshVertex1[glMeshRows][j].toPoint(), newMeshVertex1[glMeshRows][j + 1].toPoint(), cv::Scalar(0, 255, 0), 2);
+    }
+    cv::imwrite(imageName+"_global_mesh.jpg", tempImage);
+    glImage.copyTo(tempImage);
+    for (int i = 0; i < glMeshRows; i++) {
+        for (int j = 0; j < glMeshCols; j++) {
+            cv::line(tempImage, meshVertex1[i][j].toPoint(), meshVertex1[i + 1][j].toPoint(), cv::Scalar(0, 255, 0), 2);
+            cv::line(tempImage, meshVertex1[i][j].toPoint(), meshVertex1[i][j + 1].toPoint(), cv::Scalar(0, 255, 0), 2);
+        }
+        cv::line(tempImage, meshVertex1[i][glMeshCols].toPoint(), meshVertex1[i + 1][glMeshCols].toPoint(), cv::Scalar(0, 255, 0), 2);
+    }
+    for (int j = 0; j < glMeshCols; j++) {
+        cv::line(tempImage, meshVertex1[glMeshRows][j].toPoint(), meshVertex1[glMeshRows][j + 1].toPoint(), cv::Scalar(0, 255, 0), 2);
+    }
+    cv::imwrite(imageName+"_local_mesh.jpg", tempImage);
+}
+
+void keyboard(unsigned char key, int x, int y) {
+    switch (key) {
+    case 's':
+    case 'S':
+        saveImage();
+        break;
+    default:
+        break;
+    }
+}

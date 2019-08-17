@@ -24,10 +24,10 @@
     <ClCompile Include="Utils.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="GlobalWraping.cpp">
+    <ClCompile Include="lsd.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="lsd.c">
+    <ClCompile Include="GlobalWarping.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -41,7 +41,10 @@
     <ClInclude Include="lsd.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="GlobalWraping.h">
+    <ClInclude Include="GlobalWarping.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="util.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,4 +1,5 @@
 #pragma once
+#include "Utils.h"
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -6,8 +7,6 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
-#include <omp.h>
-#include "Utils.h"
 
 using namespace std;
 
@@ -21,6 +20,9 @@ struct BoundarySegment {
     int end;
     Direction direction;
     BoundarySegment(int _begin = 0, int _end = 0, Direction _direction = Direction::None);
+    int length() {
+        return end - begin;
+    }
     void print();
 };
 
@@ -29,7 +31,7 @@ class SeamCarving
 public:
     SeamCarving(cv::Mat& _image, cv::Mat& _mask);
     BoundarySegment getLongestBoundary();
-    void localWraping();
+    void localWarping();
     void insertSeam(BoundarySegment boundarySegment);
     void calcCost(BoundarySegment boundarySegment);
     void showCost(BoundarySegment boundarySegment);
@@ -52,16 +54,7 @@ public:
     uchar* expandImageArray, * expandImageRowArray, * expandImageUpRowArray;
     uchar* expandMaskArray, * expandMaskRowArray, * expandMaskUpRowArray;
     uchar* maskArray;
-
     cv::Mat displacementIndex;
     int* displacementIndexArray, * displacementIndexRowArray;
-
-    //Mat leftCost, upCost, rightCost;
-    //Mat tMask, tGrayImage, tImageIndexUsed, tDisplacementIndex;
-    //Mat imageIndexUsed, displacementIndex;
-    //float* leftCostArray;
-    //float* upCostArray;
-    //float* rightCostArray;
-    //uchar* imageIndexUsedArray;
 };
 
